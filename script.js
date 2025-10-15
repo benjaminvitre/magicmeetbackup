@@ -4,20 +4,21 @@ const ADMIN_EMAIL = "benjamin.vitre@gmail.com";
 // Triez les sous-activités
 const sortArray = (arr) => arr.sort((a, b) => a.localeCompare(b, 'fr'));
 
+// MODIFICATION : Ajout des nouvelles sous-activités
 const ACTIVITIES = {
   "Toutes": [],
   "Autres": [],
   "Culture": sortArray(["Cinéma", "Théâtre", "Exposition", "Concert"]),
   "Jeux": sortArray(["Jeux de cartes", "Jeux vidéo", "Jeux de société"]),
-  "Sorties": sortArray(["Bar", "Restaurant", "Picnic"]),
-  "Sport": sortArray(["Foot", "Padel", "Tennis", "Running", "Badminton"])
+  "Sorties": sortArray(["Bar", "Restaurant", "Picnic", "Balade"]),
+  "Sport": sortArray(["Foot", "Padel", "Tennis", "Running", "Badminton", "Basket", "Handball", "Escalade"])
 };
 
-// Trie le dictionnaire principal par clé (activité), en gardant 'Toutes' en premier
-const sortedActivityKeys = Object.keys(ACTIVITIES).filter(key => key !== "Toutes").sort((a, b) => a.localeCompare(b, 'fr'));
-const tempActivities = { "Toutes": ACTIVITIES["Toutes"] };
-sortedActivityKeys.forEach(key => tempActivities[key] = ACTIVITIES[key]);
-Object.assign(ACTIVITIES, tempActivities);
+const coreActivityKeys = Object.keys(ACTIVITIES)
+    .filter(key => key !== "Toutes" && key !== "Autres")
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+const orderedActivityKeys = ["Toutes", ...coreActivityKeys, "Autres"];
+
 
 // Ajout des emojis
 const ACTIVITY_EMOJIS = {
@@ -60,6 +61,13 @@ let currentUser = null;
 // FONCTIONS UTILITAIRES GLOBALES
 // =======================================================================
 
+function isDateInPast(dateString) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Met l'heure à minuit pour ne comparer que les jours
+    const slotDate = new Date(dateString + 'T00:00:00'); // Assure une interprétation correcte de la date
+    return slotDate < today;
+}
+
 function formatDateToWords(dateString){
   const date = new Date(dateString + 'T00:00:00');
   if (isNaN(date)) return dateString;
@@ -70,26 +78,42 @@ function formatDateToWords(dateString){
 function extractCity(locationText) {
     if (!locationText) return '';
     const parts = locationText.split(',').map(p => p.trim());
+
+    // Si une virgule est présente, on suppose que la ville est dans la dernière partie.
     if (parts.length > 1) {
         const lastPart = parts[parts.length - 1];
-        if (lastPart.match(/\d{5}\s/)) { return lastPart.replace(/\d{5}\s*/, '').trim(); }
-        return lastPart.replace(/\d{5}/, '').trim();
+        // On retire les chiffres (code postal) et on nettoie.
+        return lastPart.replace(/[0-9]/g, '').trim();
     }
-    const words = locationText.split(' ');
-    const lastWord = words[words.length -1];
-    if (lastWord && lastWord.length > 2 && lastWord[0] === lastWord[0].toUpperCase()) { return lastWord; }
-    return locationText;
+
+    // S'il n'y a pas de virgule, c'est plus ambigu (ça peut être une ville ou une adresse).
+    // On évite de retourner une adresse en cherchant des mots-clés typiques des rues.
+    const streetIndicators = ['rue', 'avenue', 'boulevard', 'impasse', 'place', 'allée', 'chemin'];
+    const lowerCaseText = locationText.toLowerCase();
+    
+    if (streetIndicators.some(indicator => lowerCaseText.includes(indicator))) {
+        // C'est probablement une adresse, on ne peut pas extraire la ville de manière fiable.
+        // On retourne une chaîne vide pour ne pas polluer le filtre des villes.
+        return '';
+    }
+
+    // Si aucun indicateur de rue n'est trouvé, on suppose que c'est une ville.
+    return locationText.replace(/[0-9]/g, '').trim();
 }
+
 
 function updateHeaderDisplay() {
     const profileLink = document.getElementById('profile-link');
     const messagerieLink = document.getElementById('messagerie-link');
+    const logoutProfileBtn = document.getElementById('logout-profile');
     if (currentUser) {
         if (profileLink) profileLink.style.display = 'inline-block';
         if (messagerieLink) messagerieLink.style.display = 'inline-block';
+        if (logoutProfileBtn) logoutProfileBtn.style.display = 'inline-block';
     } else {
         if (profileLink) profileLink.style.display = 'none';
         if (messagerieLink) messagerieLink.style.display = 'none';
+        if (logoutProfileBtn) logoutProfileBtn.style.display = 'none';
     }
 }
 
@@ -107,7 +131,7 @@ function logout() {
     auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
 }
 
-function renderSlotItem(slot, targetListElement) {
+function renderSlotItem(slot, targetListElement, isArchived = false) {
     const li = document.createElement('li'); li.className='slot-item';
     const info = document.createElement('div'); info.className='slot-info';
     const activityLine = document.createElement('div'); activityLine.className = 'subsub-line';
@@ -162,6 +186,16 @@ function renderSlotItem(slot, targetListElement) {
 
     if (slot.private) owner.innerHTML += ' <span class="private-slot-lock">🔒 Privé</span>';
     info.appendChild(title); info.appendChild(when);
+    
+    if (slot.details) {
+        const detailsDiv = document.createElement('div');
+        detailsDiv.textContent = `📝 ${slot.details}`;
+        detailsDiv.style.fontSize = '0.9em';
+        detailsDiv.style.color = 'var(--muted-text)';
+        detailsDiv.style.marginTop = '4px';
+        info.appendChild(detailsDiv);
+    }
+
     const participantsCount = (slot.participants || []).length;
     const participantsBox = document.createElement('div'); participantsBox.className = 'participants-box';
     participantsBox.innerHTML = `👤 ${participantsCount} personne${participantsCount > 1 ? 's' : ''}`;
@@ -204,14 +238,12 @@ function renderSlotItem(slot, targetListElement) {
     const actions = document.createElement('div'); actions.className='actions-box';
     const slotRef = db.collection('slots').doc(slot.id);
     const reloadLists = () => {
-        if (typeof loadSlots === 'function' && document.getElementById('slots-list')) {
-            loadSlots('slots-list', 'slots-list');
-            loadSlots('past-slots-list', 'past-slots-list');
-        }
+        if (typeof loadSlots === 'function' && document.getElementById('slots-list')) loadSlots();
         if (typeof loadUserSlots === 'function' && document.getElementById('user-slots')) loadUserSlots();
         if (typeof loadJoinedSlots === 'function' && document.getElementById('joined-slots')) loadJoinedSlots();
+        if (typeof loadArchivedSlots === 'function' && document.getElementById('archived-slots')) loadArchivedSlots();
     };
-    if (currentUser) {
+    if (currentUser && !isArchived) { // On n'affiche les boutons d'action que si le créneau n'est pas archivé
         if (targetListElement.id === 'slots-list' || targetListElement.id === 'user-slots') {
             if (!isParticipant){
                 const joinBtn = document.createElement('button');
@@ -281,11 +313,22 @@ function renderSlotItem(slot, targetListElement) {
         const link = `${window.location.origin}${window.location.pathname}?slot=${slot.id}`;
         navigator.clipboard.writeText(link).then(()=>alert('Lien copié !'));
     };
+    
+    // NOUVEAU : Ajout du bouton de conversation de groupe
+    if (currentUser && isParticipant && !isArchived) {
+        const chatBtn = document.createElement('button');
+        chatBtn.textContent = '💬';
+        chatBtn.title = 'Conversation de groupe';
+        chatBtn.className = 'action-btn ghost-action-btn';
+        chatBtn.onclick = () => startGroupChat(slot);
+        actions.appendChild(chatBtn);
+    }
+
     actions.appendChild(share);
     li.appendChild(info);
     li.appendChild(actions);
 
-    if (isOwner && slot.private && targetListElement.id === 'user-slots') {
+    if (isOwner && slot.private && targetListElement.id === 'user-slots' && !isArchived) {
         const inviteForm = document.createElement('div');
         inviteForm.className = 'invite-form';
         inviteForm.innerHTML = `
@@ -315,11 +358,13 @@ function renderSlotItem(slot, targetListElement) {
     targetListElement.appendChild(li);
 }
 
+
 // =======================================================================
 // FONCTIONS PRINCIPALES PAR PAGE
 // =======================================================================
 
 function handleIndexPageListeners() {
+    console.log("DEBUG: Initialisation des listeners de la page d'accueil...");
     const signupBtn = document.getElementById('signup');
     const loginBtn = document.getElementById('login');
     const pseudoInput = document.getElementById('pseudo');
@@ -332,8 +377,10 @@ function handleIndexPageListeners() {
                 signupBtn.disabled = true;
                 return;
             }
+            console.log(`DEBUG: Vérification du pseudo '${pseudo}' dans Firestore...`);
             try {
                 const querySnapshot = await db.collection('users').where('pseudo', '==', pseudo).get();
+                console.log("DEBUG: Requête de vérification du pseudo réussie.");
                 if (!querySnapshot.empty) {
                     pseudoStatus.textContent = 'Ce pseudo est déjà pris 😞';
                     pseudoStatus.style.color = '#e67c73';
@@ -349,20 +396,36 @@ function handleIndexPageListeners() {
         });
     }
     if (signupBtn) signupBtn.addEventListener('click', () => {
+        console.log("DEBUG: 1. Clic sur le bouton d'inscription détecté.");
         const pseudo = document.getElementById('pseudo').value.trim();
         const email = document.getElementById('email-signup').value.trim();
         const password = document.getElementById('password-signup').value.trim();
         const passwordConfirm = document.getElementById('password-confirm-signup').value.trim();
         
-        if (password !== passwordConfirm) { return alert('Les mots de passe ne correspondent pas.'); }
-        if (!pseudo || !email || !password) { return alert('Remplis tous les champs.'); }
-        if (signupBtn.disabled) { return alert('Le pseudo n\'est pas disponible.'); }
+        if (password !== passwordConfirm) {
+            console.error("DEBUG: Erreur de validation - Les mots de passe ne correspondent pas.");
+            return alert('Les mots de passe ne correspondent pas.');
+        }
+        if (!pseudo || !email || !password) {
+            console.error("DEBUG: Erreur de validation - Champs manquants.");
+            return alert('Remplis tous les champs.');
+        }
+        if (signupBtn.disabled) {
+            console.error("DEBUG: Erreur de validation - Pseudo non disponible.");
+            return alert('Le pseudo n\'est pas disponible.');
+        }
 
+        console.log("DEBUG: 2. Validation côté client réussie. Tentative de création de l'utilisateur dans Firebase Auth...");
         auth.createUserWithEmailAndPassword(email, password)
             .then((userCredential) => {
+                console.log("DEBUG: 3. Utilisateur créé avec succès dans Firebase Auth. UID:", userCredential.user.uid);
+                console.log("DEBUG: 4. Tentative d'écriture du profil dans Firestore...");
                 return db.collection('users').doc(userCredential.user.uid).set({
                     pseudo: pseudo, email: email, phone: ''
                 });
+            })
+            .then(() => {
+                console.log("DEBUG: 5. Profil écrit avec succès dans Firestore ! L'inscription est terminée.");
             })
             .catch((error) => {
                 console.error("ERREUR GLOBALE LORS DE L'INSCRIPTION:", error);
@@ -403,4 +466,920 @@ function showMain(){
     const arrow = document.querySelector('.arrow');
     const activitiesDiv = document.getElementById('activities');
     const subDiv = document.getElementById('subactivities');
-    const current
+    const currentActivityEl = document.getElementById('current-activity');
+    const activitySeparator = document.getElementById('activity-separator');
+    const formActivitySelect = document.getElementById('form-activity-select');
+    const formSubSelect = document.getElementById('sub-select');
+    const subsubSelect = document.getElementById('subsub-select');
+    const createBtn = document.getElementById('create-slot');
+    const cityFilterSelect = document.getElementById('city-filter-select');
+    const groupFilterSelect = document.getElementById('group-filter-select');
+    const formGroupInput = document.getElementById('form-group-input');
+    const groupSuggestions = document.getElementById('group-suggestions');
+    let selectedActivity = null;
+
+    async function populateGroupSelects() {
+        if (!currentUser) return;
+        const groupSnapshot = await db.collection('groups').where('members_uid', 'array-contains', currentUser.uid).get();
+        const filterOptions = ['<option value="Toutes">Tous</option>'];
+        const suggestionsHTML = [];
+        groupSnapshot.forEach(doc => {
+            const groupName = doc.data().name;
+            filterOptions.push(`<option value="${doc.id}">${groupName}</option>`);
+            suggestionsHTML.push(`<option value="${groupName}">`);
+        });
+        if (groupFilterSelect) {
+            groupFilterSelect.innerHTML = filterOptions.join('');
+            groupFilterSelect.value = currentFilterGroup;
+            groupFilterSelect.onchange = () => {
+                currentFilterGroup = groupFilterSelect.value;
+                loadSlots();
+            };
+        }
+        if (groupSuggestions) {
+            groupSuggestions.innerHTML = suggestionsHTML.join('');
+        }
+    }
+
+    function populateFormActivitySelect(){
+        if (!formActivitySelect) return;
+        formActivitySelect.innerHTML = '<option value="">-- Choisis une activité --</option>';
+        Object.keys(ACTIVITIES).filter(a=>a!=='Toutes').forEach(act => {
+            const emoji = ACTIVITY_EMOJIS[act] || '';
+            const o = document.createElement('option'); o.value = act; o.textContent = `${emoji} ${act}`; formActivitySelect.appendChild(o);
+        });
+        formActivitySelect.value = selectedActivity || '';
+        populateSubActivitiesForForm(formActivitySelect.value);
+    }
+
+    function renderActivities(){
+        activitiesDiv.innerHTML = '';
+        orderedActivityKeys.forEach(act => {
+            const b = document.createElement('button');
+            const classNameMap = { "Jeux": 'act-jeux', "Culture": 'act-culture', "Sport": 'act-sport', "Sorties": 'act-sorties', "Autres": 'act-autres', "Toutes": 'act-toutes' };
+            const className = classNameMap[act] || `act-${act.toLowerCase().replace(/\s|\//g, '-')}`;
+            b.className = 'activity-btn ' + className + (act === currentFilterActivity ? ' active' : '');
+            const emoji = ACTIVITY_EMOJIS[act] || '';
+            b.textContent = `${emoji} ${act}`;
+            b.addEventListener('click', ()=> {
+                currentFilterActivity = act;
+                currentFilterSub = "Toutes";
+                loadSlots();
+                document.querySelectorAll('.activity-buttons > .activity-btn').forEach(btn => btn.classList.remove('active'));
+                b.classList.add('active');
+                if(act !== "Toutes") {
+                    selectedActivity = act;
+                    activitySeparator.style.display = 'inline';
+                    currentActivityEl.textContent = `${emoji} ${act}`;
+                    populateSubActivities(act);
+                    if (formActivitySelect) { formActivitySelect.value = act; populateSubActivitiesForForm(act); }
+                } else {
+                    selectedActivity = null;
+                    activitySeparator.style.display = 'none';
+                    currentActivityEl.textContent = '';
+                    subDiv.innerHTML = '';
+                }
+            });
+            activitiesDiv.appendChild(b);
+        });
+        populateFormActivitySelect();
+        if (currentFilterActivity !== "Toutes") { populateSubActivities(currentFilterActivity); }
+    }
+
+    function populateSubActivities(act){
+        subDiv.innerHTML = '';
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'activity-btn';
+        resetBtn.textContent = '❌ Toutes les sous-activités';
+        const actColor = COLOR_MAP[act] || '#9aa9bf';
+        resetBtn.style.borderColor = actColor;
+        resetBtn.style.color = actColor;
+        if (currentFilterSub === "Toutes") {
+             resetBtn.classList.add('active');
+             resetBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+        }
+        resetBtn.addEventListener('click', () => { currentFilterSub = "Toutes"; loadSlots(); populateSubActivities(act); });
+        subDiv.appendChild(resetBtn);
+        const subs = ACTIVITIES[act] || [];
+        subs.forEach(s => {
+            const btn = document.createElement('button');
+            btn.className = 'activity-btn';
+            const btnColor = COLOR_MAP[s] || COLOR_MAP[act] || 'var(--muted-text)';
+            btn.style.borderColor = btnColor;
+            btn.style.color = btnColor;
+            if (s === currentFilterSub) {
+                btn.classList.add('active');
+                btn.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            }
+            btn.textContent = s;
+            btn.addEventListener('click', ()=> {
+                formSubSelect.value = s;
+                populateSubSub(s);
+                currentFilterSub = s;
+                loadSlots();
+                populateSubActivities(act);
+            });
+            subDiv.appendChild(btn);
+        });
+    }
+
+    function populateSubActivitiesForForm(act){
+        formSubSelect.innerHTML = '<option value="">-- Choisis une sous-activité --</option>';
+        (ACTIVITIES[act]||[]).forEach(s => {
+            const o = document.createElement('option'); o.value = s; o.textContent = s; formSubSelect.appendChild(o);
+        });
+        populateSubSub(formSubSelect.value);
+    }
+
+    function populateSubSub(sub){
+        subsubSelect.innerHTML = '<option value="">-- Optionnel --</option>';
+        (SUBSUB[sub]||[]).forEach(ss=>{
+            const o = document.createElement('option'); o.value = ss; o.textContent = ss; subsubSelect.appendChild(o);
+        });
+    }
+
+    async function populateCityFilter() {
+        if (!cityFilterSelect) return;
+        const snapshot = await db.collection('slots').where('private', '==', false).get();
+        const cities = new Set();
+        snapshot.forEach(doc => { 
+            if(doc.data().location) {
+                const city = extractCity(doc.data().location);
+                if (city) { // On n'ajoute que si la ville a été extraite
+                    cities.add(city);
+                }
+            }
+        });
+        const sortedCities = Array.from(cities).sort((a, b) => a.localeCompare(b, 'fr'));
+        cityFilterSelect.innerHTML = '<option value="Toutes">Toutes</option>';
+        sortedCities.forEach(city => {
+            const o = document.createElement('option'); o.value = city; o.textContent = city; cityFilterSelect.appendChild(o);
+        });
+        cityFilterSelect.value = currentFilterCity;
+        cityFilterSelect.onchange = () => { currentFilterCity = cityFilterSelect.value; loadSlots(); };
+    }
+
+    async function loadSlots() {
+        const list = document.getElementById('slots-list');
+        const archivedList = document.getElementById('archived-slots-list');
+        if (!list || !archivedList) return;
+        list.innerHTML = '';
+        archivedList.innerHTML = '';
+    
+        let publicQuery = db.collection('slots').where('private', '==', false);
+        if (currentFilterActivity !== "Toutes") { publicQuery = publicQuery.where('activity', '==', currentFilterActivity); }
+        if (currentFilterSub !== "Toutes") { publicQuery = publicQuery.where('sub', '==', currentFilterSub); }
+        if (currentFilterGroup !== "Toutes") { publicQuery = publicQuery.where('groupId', '==', currentFilterGroup); }
+        
+        const publicPromise = publicQuery.get();
+        const promises = [publicPromise];
+    
+        if (currentUser) {
+            let privateQuery = db.collection('slots')
+                .where('private', '==', true)
+                .where('owner', '==', currentUser.uid);
+            if (currentFilterActivity !== "Toutes") { privateQuery = privateQuery.where('activity', '==', currentFilterActivity); }
+            if (currentFilterSub !== "Toutes") { privateQuery = privateQuery.where('sub', '==', currentFilterSub); }
+            if (currentFilterGroup !== "Toutes") { privateQuery = privateQuery.where('groupId', '==', currentFilterGroup); }
+            promises.push(privateQuery.get());
+        }
+    
+        const snapshots = await Promise.all(promises);
+        const slotsMap = new Map();
+        snapshots.forEach(snapshot => {
+            snapshot.forEach(doc => {
+                slotsMap.set(doc.id, { id: doc.id, ...doc.data() });
+            });
+        });
+    
+        let allSlots = Array.from(slotsMap.values());
+    
+        // Filtrage par ville
+        if (currentFilterCity !== "Toutes") {
+            allSlots = allSlots.filter(s => extractCity(s.location) === currentFilterCity);
+        }
+    
+        const currentSlots = allSlots.filter(s => !isDateInPast(s.date));
+        const archivedSlots = allSlots.filter(s => isDateInPast(s.date));
+    
+        // Tri
+        currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+        archivedSlots.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
+    
+        // Affichage des créneaux actuels
+        if (currentSlots.length === 0) {
+            list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau ne correspond à vos filtres.</li>';
+        } else {
+            currentSlots.slice(0, 10).forEach(slot => renderSlotItem(slot, list, false)); // isArchived = false
+        }
+    
+        // Affichage des archives
+        if (archivedSlots.length === 0) {
+            archivedList.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau archivé.</li>';
+        } else {
+            archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true)); // isArchived = true
+        }
+    }
+
+    renderActivities();
+    loadSlots();
+    populateCityFilter();
+    populateGroupSelects();
+
+    if (toggleCreate && createForm) toggleCreate.addEventListener('click', ()=> {
+        const visible = createForm.style.display === 'block';
+        createForm.style.display = visible ? 'none' : 'block';
+        arrow.style.transform = visible ? 'rotate(0deg)' : 'rotate(90deg)';
+        if (!visible) {
+            populateFormActivitySelect();
+            formActivitySelect.value = selectedActivity || '';
+            populateSubActivitiesForForm(formActivitySelect.value);
+        }
+    });
+
+    if (formActivitySelect) formActivitySelect.addEventListener('change', ()=>{
+        selectedActivity = formActivitySelect.value;
+        const emoji = ACTIVITY_EMOJIS[selectedActivity] || '';
+        activitySeparator.style.display = 'inline';
+        currentActivityEl.textContent = selectedActivity ? `${emoji} ${selectedActivity}` : 'Aucune';
+        populateSubActivitiesForForm(selectedActivity);
+    });
+
+    formSubSelect.addEventListener('change', ()=> populateSubSub(formSubSelect.value));
+
+    if (createBtn) createBtn.addEventListener('click', async ()=> {
+        if (!currentUser) return alert('Connecte-toi d’abord');
+        const name = (document.getElementById('slot-name')?.value||'').trim();
+        const location = (document.getElementById('slot-location')?.value||'').trim();
+        const date = (document.getElementById('slot-date')?.value||'').trim();
+        const time = (document.getElementById('slot-time')?.value||'').trim();
+        const activity = formActivitySelect.value;
+        const groupName = formGroupInput.value.trim();
+        const details = (document.getElementById('slot-details')?.value || '').trim(); // Récupération des détails
+        if (!activity) return alert('Choisis d’abord une activité (ex: Jeux)');
+        if (!name || !location || !date || !time) return alert('Remplis les champs nom, lieu, date et heure');
+        let groupId = null;
+        if (groupName) {
+            const groupQuery = await db.collection('groups').where('name', '==', groupName).get();
+            if (groupQuery.empty) {
+                const newGroup = {
+                    name: groupName,
+                    owner_uid: currentUser.uid,
+                    owner_pseudo: currentUser.pseudo,
+                    members_uid: [currentUser.uid],
+                    members: [{ uid: currentUser.uid, pseudo: currentUser.pseudo }],
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    private: true
+                };
+                const groupDocRef = await db.collection('groups').add(newGroup);
+                groupId = groupDocRef.id;
+            } else {
+                groupId = groupQuery.docs[0].id;
+            }
+        }
+        const newSlot = {
+            activity: activity, sub: formSubSelect.value || '', subsub: subsubSelect.value || '',
+            name: name, location: location, date: date, time: time,
+            details: details, // Ajout des détails au nouvel objet
+            private: !!document.getElementById('private-slot')?.checked,
+            groupId: groupId,
+            groupName: groupName || null,
+            owner: currentUser.uid, ownerPseudo: currentUser.pseudo,
+            participants: [{uid: currentUser.uid, pseudo: currentUser.pseudo}],
+            participants_uid: [currentUser.uid],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            invited_uids: [],
+            invited_pseudos: []
+        };
+        db.collection('slots').add(newSlot).then(() => {
+            console.log("Créneau créé !");
+            createForm.reset();
+            formGroupInput.value = '';
+            createForm.style.display = 'none';
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+            loadSlots();
+            populateCityFilter();
+            populateGroupSelects();
+        }).catch(error => { console.error("Erreur: ", error); alert("Une erreur est survenue."); });
+    });
+}
+
+function handleProfilePage() {
+    if (!currentUser) return;
+    fillProfileFields(currentUser);
+    loadUserSlots();
+    loadJoinedSlots();
+    loadUserGroups();
+    loadPendingInvitations();
+    loadArchivedSlots(); // Appel de la nouvelle fonction pour les archives
+    const createGroupBtn = document.getElementById('create-group-btn');
+    const groupNameInput = document.getElementById('group-name-input');
+    const privateGroupCheckbox = document.getElementById('private-group');
+    if (createGroupBtn) {
+        createGroupBtn.addEventListener('click', async () => {
+            const name = groupNameInput.value.trim();
+            if (name.length < 3) return alert('Le nom du groupe doit faire au moins 3 caractères.');
+            const existingGroup = await db.collection('groups').where('name', '==', name).get();
+            if (!existingGroup.empty) { return alert('Ce nom de groupe est déjà pris.'); }
+            const newGroup = {
+                name: name, owner_uid: currentUser.uid, owner_pseudo: currentUser.pseudo,
+                members_uid: [currentUser.uid],
+                members: [{ uid: currentUser.uid, pseudo: currentUser.pseudo }],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                private: privateGroupCheckbox.checked
+            };
+            db.collection('groups').add(newGroup).then(() => { 
+                groupNameInput.value = ''; 
+                privateGroupCheckbox.checked = false;
+                loadUserGroups(); 
+            });
+        });
+    }
+    const profileForm = document.getElementById('profile-form');
+    if (profileForm) {
+        profileForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+        });
+    }
+}
+
+async function loadUserSlots() {
+    const list = document.getElementById('user-slots');
+    if (!list || !currentUser) return;
+    list.innerHTML = '';
+    const snapshot = await db.collection('slots').where('owner', '==', currentUser.uid).orderBy('date', 'asc').get();
+    
+    const currentSlots = snapshot.docs.filter(doc => !isDateInPast(doc.data().date));
+    
+    if (currentSlots.length === 0) {
+        list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Vous n\'avez créé aucun créneau à venir.</li>';
+        return;
+    }
+    currentSlots.forEach(doc => renderSlotItem({ id: doc.id, ...doc.data() }, list, false));
+}
+
+async function loadJoinedSlots() {
+    const list = document.getElementById('joined-slots');
+    if (!list || !currentUser) return;
+    list.innerHTML = '';
+    const snapshot = await db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid).orderBy('date', 'asc').get();
+    
+    if (snapshot.empty) {
+        list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Vous n\'avez rejoint aucun créneau.</li>';
+        return;
+    }
+    
+    let hasJoinedSlots = false;
+    snapshot.forEach(doc => {
+        const slot = { id: doc.id, ...doc.data() };
+        if (slot.owner !== currentUser.uid && !isDateInPast(slot.date)) {
+            hasJoinedSlots = true;
+            renderSlotItem(slot, list, false);
+        }
+    });
+    
+    if (!hasJoinedSlots) {
+        list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Vous n\'avez rejoint aucun autre créneau à venir.</li>';
+    }
+}
+
+async function loadArchivedSlots() {
+    const list = document.getElementById('archived-slots');
+    if (!list || !currentUser) return;
+    list.innerHTML = '';
+
+    const createdPromise = db.collection('slots').where('owner', '==', currentUser.uid).get();
+    const joinedPromise = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid).get();
+
+    const [createdSnapshot, joinedSnapshot] = await Promise.all([createdPromise, joinedPromise]);
+
+    const archivedSlotsMap = new Map();
+
+    const processSnapshot = (snapshot) => {
+        snapshot.forEach(doc => {
+            const slot = { id: doc.id, ...doc.data() };
+            if (isDateInPast(slot.date)) {
+                archivedSlotsMap.set(doc.id, slot);
+            }
+        });
+    };
+
+    processSnapshot(createdSnapshot);
+    processSnapshot(joinedSnapshot);
+
+    if (archivedSlotsMap.size === 0) {
+        list.innerHTML = '<li class="muted-text" style="padding: 10px 0;">Vous n\'avez aucun créneau archivé.</li>';
+        return;
+    }
+
+    const sortedArchived = Array.from(archivedSlotsMap.values())
+        .sort((a, b) => new Date(b.date) - new Date(a.date)); // Tri par date, du plus récent au plus ancien
+
+    sortedArchived.forEach(slot => renderSlotItem(slot, list, true)); // isArchived = true
+}
+
+
+async function loadUserGroups() {
+    const list = document.getElementById('groups-list'); if (!list || !currentUser) return; list.innerHTML = '';
+    const snapshot = await db.collection('groups').where('members_uid', 'array-contains', currentUser.uid).orderBy('createdAt', 'desc').get();
+    if (snapshot.empty) { list.innerHTML = '<li class="muted-text" style="padding: 10px 0;">Vous ne faites partie d\'aucun groupe.</li>'; return; }
+    snapshot.forEach(doc => renderGroupItem({ id: doc.id, ...doc.data() }));
+}
+
+function renderGroupItem(group) {
+    const list = document.getElementById('groups-list');
+    const li = document.createElement('li');
+    li.className = 'group-item';
+    const membersListDiv = document.createElement('div');
+    membersListDiv.className = 'members-list';
+    membersListDiv.innerHTML = '<strong>Membres :</strong> ';
+    group.members.forEach((m, index) => {
+        const pseudoSpan = document.createElement('span');
+        if (currentUser && m.uid !== currentUser.uid) {
+            pseudoSpan.className = 'clickable-pseudo';
+            pseudoSpan.onclick = () => startChat(m.uid, m.pseudo);
+        }
+        pseudoSpan.textContent = m.pseudo;
+        membersListDiv.appendChild(pseudoSpan);
+        if (index < group.members.length - 1) {
+            membersListDiv.append(', ');
+        }
+    });
+
+    li.innerHTML = `<h3>${group.name}</h3>`;
+    li.appendChild(membersListDiv);
+    li.innerHTML += `<div class="add-member-form">
+            <input type="text" id="add-member-input-${group.id}" placeholder="Pseudo de l'utilisateur à ajouter">
+            <button id="add-member-btn-${group.id}" class="action-btn">Ajouter</button>
+        </div>`;
+    list.appendChild(li);
+    const addBtn = document.getElementById(`add-member-btn-${group.id}`);
+    const addInput = document.getElementById(`add-member-input-${group.id}`);
+    addBtn.addEventListener('click', async () => {
+        const pseudoToAdd = addInput.value.trim();
+        if (!pseudoToAdd) return;
+        const userQuery = await db.collection('users').where('pseudo', '==', pseudoToAdd).get();
+        if (userQuery.empty) { return alert("Utilisateur non trouvé."); }
+        const userToAdd = userQuery.docs[0].data();
+        const userToAddId = userQuery.docs[0].id;
+        if (group.members_uid.includes(userToAddId)) { return alert('Cet utilisateur est déjà dans le groupe.'); }
+        const groupRef = db.collection('groups').doc(group.id);
+        await groupRef.update({
+            members_uid: firebase.firestore.FieldValue.arrayUnion(userToAddId),
+            members: firebase.firestore.FieldValue.arrayUnion({ uid: userToAddId, pseudo: userToAdd.pseudo })
+        });
+        addInput.value = '';
+        loadUserGroups();
+    });
+}
+
+async function loadPendingInvitations() {
+    const list = document.getElementById('pending-invitations-list');
+    if (!list || !currentUser) return;
+    list.innerHTML = '';
+    const snapshot = await db.collection('slots').where('invited_uids', 'array-contains', currentUser.uid).get();
+    if (snapshot.empty) {
+        list.innerHTML = '<li class="muted-text" style="padding: 10px 0;">Vous n\'avez aucune invitation en attente.</li>';
+        return;
+    }
+    let invitationsCount = 0;
+    snapshot.forEach(doc => {
+        const slot = { id: doc.id, ...doc.data() };
+        if (!slot.participants_uid.includes(currentUser.uid)) {
+            invitationsCount++;
+            const li = document.createElement('li');
+            li.className = 'invitation-item';
+            
+            li.innerHTML = `
+                <div class="invitation-info">
+                    <strong>${slot.name}</strong>
+                    <small>par ${slot.ownerPseudo}</small>
+                </div>
+                <div class="invitation-actions">
+                    <button class="action-btn join-btn" id="accept-${slot.id}">Accepter</button>
+                    <button class="action-btn leave-btn" id="decline-${slot.id}">Refuser</button>
+                </div>
+            `;
+            list.appendChild(li);
+            const slotRef = db.collection('slots').doc(slot.id);
+            li.querySelector(`#accept-${slot.id}`).addEventListener('click', () => {
+                slotRef.update({
+                    participants: firebase.firestore.FieldValue.arrayUnion({uid: currentUser.uid, pseudo: currentUser.pseudo}),
+                    participants_uid: firebase.firestore.FieldValue.arrayUnion(currentUser.uid),
+                    invited_uids: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+                    invited_pseudos: firebase.firestore.FieldValue.arrayRemove(currentUser.pseudo)
+                }).then(() => {
+                    loadPendingInvitations();
+                    loadJoinedSlots();
+                });
+            });
+            li.querySelector(`#decline-${slot.id}`).addEventListener('click', () => {
+                slotRef.update({
+                    invited_uids: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+                    invited_pseudos: firebase.firestore.FieldValue.arrayRemove(currentUser.pseudo)
+                }).then(loadPendingInvitations);
+            });
+        }
+    });
+    if (invitationsCount === 0) {
+        list.innerHTML = '<li class="muted-text" style="padding: 10px 0;">Vous n\'avez aucune invitation en attente.</li>';
+    }
+}
+
+function checkShared(){
+    const params = new URLSearchParams(window.location.search);
+    const slotId = params.get('slot');
+    if (!slotId) return;
+    const modal = document.getElementById('shared-slot-modal');
+    if (!modal) return;
+    const closeBtn = modal.querySelector('.close-btn');
+    const detailsDiv = document.getElementById('modal-slot-details');
+    const joinBtn = document.getElementById('modal-join-btn');
+    const closeModal = () => {
+        modal.style.display = 'none';
+        window.history.replaceState({}, document.title, window.location.pathname);
+    };
+    closeBtn.onclick = closeModal;
+    window.onclick = (event) => { if (event.target == modal) { closeModal(); } };
+    db.collection('slots').doc(slotId).get().then(doc => {
+        if(!doc.exists) return;
+        const slot = { id: doc.id, ...doc.data() };
+        const isParticipant = currentUser && (slot.participants_uid || []).includes(currentUser.uid);
+        const isInvited = currentUser && (slot.invited_uids || []).includes(currentUser.uid);
+        if (slot.private && !isParticipant && !isInvited) return;
+        detailsDiv.innerHTML = ''; 
+        const title = document.createElement('strong'); title.textContent = slot.name;
+        const activity = document.createElement('p'); activity.textContent = `Activité: ${slot.activity} ${slot.sub ? ' - '+slot.sub : ''}`;
+        const location = document.createElement('p'); location.textContent = `Lieu: ${slot.location}`;
+        const date = document.createElement('p'); date.textContent = `Le: ${formatDateToWords(slot.date)} à ${slot.time}`;
+        const owner = document.createElement('p'); owner.textContent = `Organisé par: ${slot.ownerPseudo}`;
+        detailsDiv.appendChild(title); detailsDiv.appendChild(activity); detailsDiv.appendChild(location); detailsDiv.appendChild(date); detailsDiv.appendChild(owner);
+        if (!currentUser) {
+            joinBtn.textContent = 'Connectez-vous pour rejoindre';
+            joinBtn.disabled = true;
+        } else {
+            const isFull = (slot.participants || []).length >= MAX_PARTICIPANTS;
+            if (isParticipant) {
+                joinBtn.textContent = '✅ Déjà rejoint';
+                joinBtn.disabled = true;
+            } else if (isFull) {
+                joinBtn.textContent = ' Complet';
+                joinBtn.disabled = true;
+            } else {
+                joinBtn.textContent = '✅ Rejoindre';
+                joinBtn.disabled = false;
+                const newJoinBtn = joinBtn.cloneNode(true);
+                joinBtn.parentNode.replaceChild(newJoinBtn, joinBtn);
+                newJoinBtn.addEventListener('click', () => {
+                    const slotRef = db.collection('slots').doc(slot.id);
+                    slotRef.update({
+                        participants: firebase.firestore.FieldValue.arrayUnion({uid: currentUser.uid, pseudo: currentUser.pseudo}),
+                        participants_uid: firebase.firestore.FieldValue.arrayUnion(currentUser.uid),
+                        invited_uids: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
+                        invited_pseudos: firebase.firestore.FieldValue.arrayRemove(currentUser.pseudo)
+                    }).then(() => {
+                        alert('Créneau rejoint ! 🤘');
+                        closeModal();
+                        if (document.getElementById('joined-slots')) { loadJoinedSlots(); }
+                    });
+                });
+            }
+        }
+        modal.style.display = 'block';
+    }).catch(error => { console.error("Erreur:", error); });
+}
+
+function openEditModal(slot) {
+    const modal = document.getElementById('edit-slot-modal');
+    if (!modal) return;
+    const closeBtn = modal.querySelector('.close-btn');
+    const saveBtn = document.getElementById('save-slot-changes');
+    const activitySelect = document.getElementById('edit-form-activity-select');
+    const subSelect = document.getElementById('edit-sub-select');
+    const subsubSelect = document.getElementById('edit-subsub-select');
+    document.getElementById('edit-slot-id').value = slot.id;
+    document.getElementById('edit-slot-name').value = slot.name;
+    document.getElementById('edit-slot-location').value = slot.location;
+    document.getElementById('edit-slot-details').value = slot.details || ''; // Pré-remplir le champ détails
+    document.getElementById('edit-slot-date').value = slot.date;
+    document.getElementById('edit-slot-time').value = slot.time;
+    document.getElementById('edit-private-slot').checked = slot.private;
+    activitySelect.innerHTML = '';
+    Object.keys(ACTIVITIES).filter(a=>a!=='Toutes').forEach(act => {
+        const o = document.createElement('option'); o.value = act; o.textContent = act;
+        activitySelect.appendChild(o);
+    });
+    activitySelect.value = slot.activity;
+    const populateSubs = (activity) => {
+        subSelect.innerHTML = '<option value="">-- Optionnel --</option>';
+        (ACTIVITIES[activity] || []).forEach(s => {
+            const o = document.createElement('option'); o.value = s; o.textContent = s; subSelect.appendChild(o);
+        });
+        subSelect.value = slot.sub;
+    };
+    const populateSubSubs = (subActivity) => {
+        subsubSelect.innerHTML = '<option value="">-- Optionnel --</option>';
+        (SUBSUB[subActivity] || []).forEach(ss => {
+            const o = document.createElement('option'); o.value = ss; o.textContent = ss; subsubSelect.appendChild(o);
+        });
+        subsubSelect.value = slot.subsub;
+    };
+    populateSubs(slot.activity);
+    populateSubSubs(slot.sub);
+    activitySelect.onchange = () => populateSubs(activitySelect.value);
+    subSelect.onchange = () => populateSubSubs(subSelect.value);
+    modal.style.display = 'block';
+    const closeModal = () => modal.style.display = 'none';
+    closeBtn.onclick = closeModal;
+    window.onclick = (event) => { if (event.target == modal) closeModal(); };
+    const newSaveBtn = saveBtn.cloneNode(true);
+    saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+    newSaveBtn.addEventListener('click', () => {
+        const updatedSlot = {
+            name: document.getElementById('edit-slot-name').value,
+            location: document.getElementById('edit-slot-location').value,
+            details: document.getElementById('edit-slot-details').value.trim(), // Sauvegarder les détails modifiés
+            date: document.getElementById('edit-slot-date').value,
+            time: document.getElementById('edit-slot-time').value,
+            private: document.getElementById('edit-private-slot').checked,
+            activity: activitySelect.value,
+            sub: subSelect.value,
+            subsub: subsubSelect.value,
+        };
+        const slotId = document.getElementById('edit-slot-id').value;
+        db.collection('slots').doc(slotId).update(updatedSlot)
+            .then(() => {
+                closeModal();
+                if (document.getElementById('user-slots')) {
+                    loadUserSlots();
+                }
+                if (document.getElementById('slots-list')) {
+                    loadSlots();
+                }
+            })
+            .catch(error => console.error("Erreur lors de la mise à jour: ", error));
+    });
+}
+
+function handleMessagingPage() {
+    if (!currentUser) {
+        window.location.href = 'index.html';
+        return;
+    }
+    const messagingContainer = document.querySelector('.messaging-container');
+    const backBtn = document.getElementById('back-to-conv-btn');
+    const closeChatBtn = document.getElementById('close-chat'); // Nouveau bouton
+    const convList = document.getElementById('conv-list');
+    const chatWithName = document.getElementById('chat-with-name');
+    const messagesArea = document.getElementById('messages-area');
+    const messageInput = document.getElementById('message-input');
+    const sendMessageBtn = document.getElementById('send-message-btn');
+    let currentChatId = null;
+    let unsubscribeMessages = null;
+
+    // Fonction pour fermer et réinitialiser la vue de chat
+    function closeChatWindow() {
+        if (messagingContainer) messagingContainer.classList.remove('chat-active');
+        if (unsubscribeMessages) unsubscribeMessages();
+        
+        messagesArea.innerHTML = '';
+        chatWithName.textContent = 'Sélectionnez une conversation';
+        messageInput.disabled = true;
+        sendMessageBtn.disabled = true;
+        currentChatId = null;
+        unsubscribeMessages = null;
+        if(closeChatBtn) closeChatBtn.style.display = 'none';
+
+        // Déselectionner la conversation active dans la liste
+        const activeConv = document.querySelector('.conv-item.active');
+        if (activeConv) activeConv.classList.remove('active');
+    }
+
+    async function loadConversations() {
+        convList.innerHTML = '';
+        const query = db.collection('chats')
+            .where('members_uid', 'array-contains', currentUser.uid)
+            .orderBy('lastMessageTimestamp', 'desc');
+        const snapshot = await query.get();
+        if (snapshot.empty) {
+            convList.innerHTML = '<li class="muted-text">Aucune conversation.</li>';
+            return;
+        }
+        snapshot.forEach(doc => {
+            const chat = doc.data();
+            const li = document.createElement('li');
+            li.className = 'conv-item';
+            li.dataset.chatId = doc.id;
+
+            if (chat.isGroupChat) {
+                // Logique pour conversation de groupe
+                li.innerHTML = `
+                    <strong>${chat.groupName} 💬</strong><br>
+                    <small>${chat.lastMessageText || '...'}</small>
+                `;
+                li.addEventListener('click', () => {
+                    document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
+                    li.classList.add('active');
+                    loadMessages(doc.id, chat.groupName, true); // isGroup = true
+                    if (messagingContainer) {
+                        messagingContainer.classList.add('chat-active');
+                    }
+                });
+            } else {
+                // Logique pour conversation 1-on-1
+                const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
+                if (!otherUser) return;
+                li.innerHTML = `
+                    <strong>${otherUser.pseudo}</strong><br>
+                    <small>${chat.lastMessageText || '...'}</small>
+                `;
+                li.addEventListener('click', () => {
+                    document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
+                    li.classList.add('active');
+                    loadMessages(doc.id, otherUser.pseudo, false); // isGroup = false
+                    if (messagingContainer) {
+                        messagingContainer.classList.add('chat-active');
+                    }
+                });
+            }
+            convList.appendChild(li);
+        });
+    }
+
+    if (backBtn) backBtn.addEventListener('click', closeChatWindow);
+    if (closeChatBtn) closeChatBtn.addEventListener('click', closeChatWindow);
+
+    function loadMessages(chatId, chatName, isGroup) {
+        currentChatId = chatId;
+        chatWithName.textContent = chatName;
+        messagesArea.innerHTML = '';
+        messageInput.disabled = false;
+        sendMessageBtn.disabled = false;
+        if(closeChatBtn) closeChatBtn.style.display = 'block';
+        if (unsubscribeMessages) {
+            unsubscribeMessages();
+        }
+        const query = db.collection('chats').doc(chatId).collection('messages').orderBy('timestamp', 'asc');
+        unsubscribeMessages = query.onSnapshot(snapshot => {
+            messagesArea.innerHTML = '';
+            snapshot.forEach(doc => {
+                const message = doc.data();
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                messageDiv.classList.add(message.senderId === currentUser.uid ? 'sent' : 'received');
+
+                // Si c'est un groupe et que le message n'est pas de nous, afficher le pseudo
+                if (isGroup && message.senderId !== currentUser.uid) {
+                    const senderName = document.createElement('div');
+                    senderName.className = 'message-sender';
+                    senderName.textContent = message.senderPseudo;
+                    messageDiv.appendChild(senderName);
+                }
+
+                const messageText = document.createElement('div');
+                messageText.className = 'message-text';
+                messageText.textContent = message.text;
+                messageDiv.appendChild(messageText);
+                
+                messagesArea.prepend(messageDiv);
+            });
+        });
+    }
+
+    async function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text || !currentChatId) return;
+        const newMessage = {
+            text: text,
+            senderId: currentUser.uid,
+            senderPseudo: currentUser.pseudo,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        const chatRef = db.collection('chats').doc(currentChatId);
+        await chatRef.collection('messages').add(newMessage);
+        await chatRef.update({
+            lastMessageText: text,
+            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        messageInput.value = '';
+        messageInput.focus();
+    }
+
+    sendMessageBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keyup', (event) => {
+        if (event.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const initialChatId = params.get('chatId');
+    if (initialChatId) {
+        db.collection('chats').doc(initialChatId).get().then(doc => {
+            if (doc.exists) {
+                const chat = doc.data();
+                if (chat.isGroupChat) {
+                    loadMessages(initialChatId, chat.groupName, true);
+                    if (messagingContainer) messagingContainer.classList.add('chat-active');
+                } else {
+                    const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
+                    if (otherUser) {
+                        loadMessages(initialChatId, otherUser.pseudo, false);
+                        if (messagingContainer) messagingContainer.classList.add('chat-active');
+                    }
+                }
+                setTimeout(() => {
+                    document.querySelector(`.conv-item[data-chat-id="${initialChatId}"]`)?.classList.add('active');
+                }, 500);
+            }
+        });
+    }
+    loadConversations();
+}
+
+
+async function startChat(otherUserId, otherUserPseudo) {
+    if (!currentUser || currentUser.uid === otherUserId) return;
+    const chatId = [currentUser.uid, otherUserId].sort().join('_');
+    const chatRef = db.collection('chats').doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) {
+        await chatRef.set({
+            isGroupChat: false, // On précise que ce n'est pas un groupe
+            members_uid: [currentUser.uid, otherUserId],
+            participants: [
+                { uid: currentUser.uid, pseudo: currentUser.pseudo },
+                { uid: otherUserId, pseudo: otherUserPseudo }
+            ],
+            lastMessageText: "Début de la conversation...",
+            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    }
+    window.location.href = `messagerie.html?chatId=${chatId}`;
+}
+
+// NOUVELLE FONCTION : Démarrer ou rejoindre une conversation de groupe
+async function startGroupChat(slot) {
+    if (!currentUser || !slot.participants_uid.includes(currentUser.uid)) {
+        return alert("Vous devez être participant pour accéder à la conversation de groupe.");
+    }
+    const chatId = `group_${slot.id}`;
+    const chatRef = db.collection('chats').doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) {
+        // Créer la conversation de groupe si elle n'existe pas
+        await chatRef.set({
+            isGroupChat: true,
+            groupName: slot.name,
+            members_uid: slot.participants_uid,
+            participants: slot.participants,
+            lastMessageText: "Conversation de groupe créée.",
+            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: currentUser.uid,
+            slotId: slot.id
+        });
+    }
+    window.location.href = `messagerie.html?chatId=${chatId}`;
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    auth.onAuthStateChanged(async user => {
+        if (user) {
+            const userDocRef = db.collection('users').doc(user.uid);
+            const userDoc = await userDocRef.get();
+            if (userDoc.exists) {
+                currentUser = { uid: user.uid, email: user.email, ...userDoc.data() };
+            } else {
+                currentUser = { uid: user.uid, email: user.email, pseudo: user.email.split('@')[0] };
+            }
+            checkShared();
+            if (document.getElementById('profile-main')) {
+                handleProfilePage();
+            } else if (document.getElementById('main-section')) {
+                showMain();
+            } else if (document.querySelector('.messaging-container')) {
+                handleMessagingPage();
+            }
+        } else {
+            currentUser = null;
+            checkShared();
+            if (document.getElementById('auth-section')) {
+                 document.getElementById('auth-section').style.display = 'flex';
+                 document.getElementById('main-section').style.display = 'none';
+            } else if (document.getElementById('profile-main')) {
+                 window.location.href = 'index.html';
+            } else if (document.querySelector('.messaging-container')) {
+                window.location.href = 'index.html';
+            }
+        }
+        updateHeaderDisplay();
+    });
+    
+    const logoutProfile = document.getElementById('logout-profile');
+    if (logoutProfile) logoutProfile.addEventListener('click', logout);
+
+    if (document.getElementById('main-section')) {
+        handleIndexPageListeners();
+    }
+});
