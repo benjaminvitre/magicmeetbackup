@@ -1,0 +1,848 @@
+/*
+====================================
+0. CUSTOM PROPERTIES (VARIABLES)
+====================================
+*/
+:root {
+    --bg-primary: #0f1417;
+    --bg-secondary: #1a2024;
+    --text-primary: #e6e8eb;
+    --text-accent: #4da6ff;
+    --muted-text: #9aa9bf;
+    --border-color: #2b353e;
+    --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    --hover-bg: #2b353e;
+    --focus-ring: 0 0 0 3px rgba(77, 166, 255, 0.5);
+
+    /* Couleurs Activités (Pastels sur sombre) */
+    --act-autres: #78d6a4; /* Vert menthe */
+    --act-jeux: #c085f5; /* Violet */
+    --act-culture: #e67c73; /* Corail */
+    --act-sport: #f27a7d; /* Rouge pastel */
+    --act-sorties: #f1a66a; /* Orange */
+    --act-toutes: #9aa9bf; /* Gris-bleu */
+}
+
+/*
+====================================
+1. BASE & THEME SOMBRE
+====================================
+*/
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+main, .auth-section {
+    max-width: 900px;
+    margin: 6px auto;
+    padding: 0 15px;
+}
+
+a {
+    color: var(--text-accent);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: var(--text-primary);
+}
+
+h1, h2, h3 {
+    margin-bottom: 15px;
+    color: var(--text-primary);
+}
+/* MODIFICATION : Groupe de sélecteurs pour uniformiser la taille de police des titres de section */
+.filter-box h2, .create-slot-box h2, .slot-list-card h2 {
+    font-size: 1.05em;
+}
+
+.filter-box h2, .slot-list-card h2 {
+    margin-bottom: 12px;
+}
+
+
+ul {
+    list-style: none;
+}
+
+/*
+====================================
+2. HEADER & NAVIGATION
+====================================
+*/
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+
+.logo-link {
+    display: flex;
+    align-items: center;
+    width: 56px;
+    height: 56px;
+    margin-right: 15px;
+}
+
+.site-title {
+    flex-grow: 1;
+    font-size: 1.5em;
+    font-weight: 800;
+    margin-bottom: 0;
+    color: var(--text-primary);
+}
+
+.header-right {
+    display: flex;
+    gap: 10px;
+}
+
+.home-link {
+    font-size: 0.9em;
+    margin-right: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    transition: background-color 0.2s;
+}
+
+.home-link:hover {
+    background-color: var(--hover-bg);
+}
+
+
+/*
+====================================
+3. CARDS & FORMS
+====================================
+*/
+.card {
+    background-color: var(--bg-secondary);
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 20px;
+}
+.create-slot-box {
+    padding: 14px 20px;
+}
+
+.auth-section {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 50px;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 400px;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    color: var(--muted-text);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="date"],
+input[type="time"],
+select {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+}
+
+input:focus, select:focus {
+    border-color: var(--text-accent);
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/*
+====================================
+4. BUTTONS
+====================================
+*/
+.action-btn {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s, opacity 0.2s;
+}
+
+.action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.join-btn, #create-slot, #signup, #login, #save-profile-btn, #save-slot-changes {
+    background-color: var(--text-accent);
+    color: var(--bg-primary);
+    width: 100%;
+}
+
+.join-btn:hover:not(:disabled), #create-slot:hover:not(:disabled), #signup:hover:not(:disabled), #login:hover:not(:disabled), #save-profile-btn:hover:not(:disabled), #save-slot-changes:hover:not(:disabled) {
+    background-color: #6fb2f2;
+}
+
+.leave-btn, .ghost-btn {
+    background-color: var(--hover-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.leave-btn:hover:not(:disabled), .ghost-btn:hover:not(:disabled) {
+    background-color: var(--border-color);
+}
+
+.ghost-action-btn {
+    background: none;
+    color: var(--muted-text);
+    border: none;
+    padding: 5px;
+    font-size: 1.2em;
+}
+
+.ghost-action-btn:hover {
+    color: var(--text-accent);
+    background-color: transparent;
+}
+
+
+/*
+====================================
+5. INDEX SPECIFIC
+====================================
+*/
+.muted-text {
+    color: var(--muted-text);
+}
+
+.filter-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.filter-controls > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-controls select {
+    width: auto;
+    min-width: 150px;
+    margin-bottom: 0;
+}
+
+.toggle-header {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.toggle-header:hover {
+    color: var(--text-accent);
+}
+
+.arrow {
+    transition: transform 0.2s;
+    font-size: 1.5em;
+    line-height: 1;
+}
+
+.inline-fields {
+    display: flex;
+    gap: 15px;
+}
+
+.inline-fields > div {
+    flex: 1;
+}
+
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    margin-top: -5px;
+    margin-bottom: 15px;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+}
+
+.checkbox-group label {
+    margin: 0;
+    font-size: 1em;
+    color: var(--text-primary);
+}
+
+.form-checkbox {
+    margin-top: -10px; 
+    margin-bottom: 15px;
+}
+.form-checkbox label {
+    font-size: 0.9em; 
+    color: var(--muted-text);
+}
+
+
+.activity-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.activity-btn {
+    padding: 6px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    background-color: transparent;
+    color: var(--muted-text);
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.activity-btn.active, .activity-btn:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--text-accent);
+    color: var(--text-primary);
+}
+
+.activity-btn.act-jeux { border-color: var(--act-jeux); color: var(--act-jeux); }
+.activity-btn.act-culture { border-color: var(--act-culture); color: var(--act-culture); }
+.activity-btn.act-sport { border-color: var(--act-sport); color: var(--act-sport); }
+.activity-btn.act-sorties { border-color: var(--act-sorties); color: var(--act-sorties); }
+.activity-btn.act-autres { border-color: var(--act-autres); color: var(--act-autres); }
+.activity-btn.act-toutes { border-color: var(--act-toutes); color: var(--act-toutes); }
+
+.activity-btn.act-jeux.active, .activity-btn.act-jeux:hover { background-color: rgba(192, 133, 245, 0.2); color: var(--act-jeux); border-color: var(--act-jeux); }
+.activity-btn.act-culture.active, .activity-btn.act-culture:hover { background-color: rgba(230, 124, 115, 0.2); color: var(--act-culture); border-color: var(--act-culture); }
+.activity-btn.act-sport.active, .activity-btn.act-sport:hover { background-color: rgba(242, 122, 125, 0.2); color: var(--act-sport); border-color: var(--act-sport); }
+.activity-btn.act-sorties.active, .activity-btn.act-sorties:hover { background-color: rgba(241, 166, 106, 0.2); color: var(--act-sorties); border-color: var(--act-sorties); }
+.activity-btn.act-autres.active, .activity-btn.act-autres:hover { background-color: rgba(120, 214, 164, 0.2); color: var(--act-autres); border-color: var(--act-autres); }
+
+
+.slot-list-card h2 {
+    margin-bottom: 5px;
+}
+
+.slot-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 2.25px solid #44515c;
+    background-color: transparent; 
+}
+
+.slot-item:last-child {
+    border-bottom: none;
+}
+
+.slot-info {
+    flex-grow: 1;
+    margin-right: 15px;
+}
+
+.slot-info strong {
+    display: block;
+    font-size: 1.1em;
+    margin-bottom: 5px;
+}
+
+.slot-info small {
+    display: block;
+    color: var(--muted-text);
+    font-size: 0.8em;
+    margin-top: 5px;
+}
+
+.slot-info a {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.slot-info a:hover {
+    color: var(--text-accent);
+}
+
+.private-slot-lock {
+    color: var(--text-accent);
+    font-size: 0.9em;
+}
+
+.actions-box {
+    display: flex;
+    gap: 5px;
+}
+
+.participants-box {
+    margin-top: 8px;
+    margin-bottom: 5px;
+}
+
+.gauge-bar {
+    height: 6px;
+    background-color: var(--bg-primary);
+    border-radius: 3px;
+    margin-top: 5px;
+    overflow: hidden;
+}
+
+.gauge-fill {
+    height: 100%;
+    background-color: var(--text-accent);
+    transition: width 0.3s;
+}
+
+.participants-list {
+    font-size: 0.85em;
+    color: var(--muted-text);
+    margin-bottom: 5px;
+}
+
+.clickable-pseudo {
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.clickable-pseudo:hover {
+    color: var(--text-accent);
+}
+
+.suggestion-box {
+    padding: 8px;
+    margin-top: -10px;
+    margin-bottom: 15px;
+    background-color: var(--hover-bg);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.subsub-line {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.subsub-box {
+    font-size: 0.75em;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid;
+    font-weight: 500;
+}
+
+
+/*
+====================================
+6. MOBILE RESPONSIVE
+====================================
+*/
+@media (max-width: 768px) {
+    .header {
+        flex-wrap: wrap;
+    }
+    .logo-link {
+        order: 0;
+        margin-right: 5px;
+    }
+    .site-title {
+        order: 1;
+        width: auto;
+        margin-top: 0;
+        text-align: left;
+        font-size: 1.3em;
+    }
+    .header-right {
+        order: 2;
+        margin-left: auto;
+    }
+    .auth-section {
+        flex-direction: column;
+        margin-top: 20px;
+    }
+    .inline-fields {
+        flex-direction: column;
+    }
+    .slot-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .slot-info {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .actions-box {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    .ghost-action-btn {
+        padding: 5px 10px;
+    }
+
+    /* VERSION CORRIGÉE ET FIABLE POUR L'AFFICHAGE MOBILE DE LA MESSAGERIE */
+    .messaging-container {
+        position: relative;
+        overflow: hidden;
+    }
+    .conversations-list {
+        width: 100%;
+        flex-shrink: 0;
+        padding: 20px 15%;
+    }
+    .chat-window {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+        margin: 0;
+        border-radius: 0;
+        background-color: var(--bg-secondary);
+    }
+    .messaging-container.chat-active .chat-window {
+        transform: translateX(0);
+    }
+    .back-btn {
+        display: inline-block;
+    }
+}
+
+
+/* ====================================
+7. MODAL STYLES
+====================================
+*/
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 2000; 
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.7); 
+}
+
+.modal-content {
+    background-color: var(--bg-secondary);
+    margin: 10% auto;
+    padding: 25px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.close-btn {
+    color: var(--muted-text);
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    transition: color 0.2s;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: var(--text-primary);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+#modal-slot-details {
+    line-height: 1.8;
+    margin-bottom: 20px;
+}
+
+#modal-slot-details strong {
+    color: var(--text-primary);
+    font-size: 1.2em;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.modal-actions {
+    margin-top: 15px;
+}
+
+/* ====================================
+8. GROUP & INVITATION STYLES
+====================================
+*/
+.create-group-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+.create-group-form input {
+    margin-bottom: 0;
+    flex-grow: 1;
+}
+.create-group-form button {
+    width: auto;
+}
+.form-status {
+    font-size: 0.8em;
+}
+
+.group-item {
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+.group-item h3 {
+    margin-bottom: 10px;
+    font-size: 1.2em;
+}
+.members-list {
+    font-size: 0.9em;
+    color: var(--muted-text);
+    margin-bottom: 15px;
+}
+.members-list strong {
+    color: var(--text-primary);
+}
+.add-member-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.add-member-form input {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+.add-member-form button {
+    width: auto;
+    padding: 8px 12px;
+}
+.invite-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+.invite-form input {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+.invite-form button {
+    width: auto;
+    padding: 8px 12px;
+}
+
+.invitation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.invitation-item:last-child {
+    border-bottom: none;
+}
+.invitation-info small {
+    display: block;
+    color: var(--muted-text);
+}
+.invitation-actions {
+    display: flex;
+    gap: 8px;
+}
+.invitation-actions button {
+    width: auto;
+    padding: 6px 10px;
+}
+
+
+/* ====================================
+9. MESSAGING STYLES
+====================================
+*/
+.messaging-container {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 100px);
+}
+.conversations-list {
+    flex: 0 0 280px;
+    overflow-y: auto;
+}
+.conv-item {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.conv-item:last-child {
+    border-bottom: none;
+}
+.conv-item:hover {
+    background-color: var(--hover-bg);
+}
+.conv-item.active {
+    background-color: var(--text-accent);
+    color: var(--bg-primary);
+}
+.conv-item.active small {
+    color: var(--bg-secondary);
+}
+.conv-item small {
+    font-size: 0.8em;
+    color: var(--muted-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+}
+.conv-item.unread strong {
+    font-weight: 800;
+    color: var(--text-primary);
+}
+.conv-item.unread small {
+    color: var(--text-accent);
+    font-weight: 600;
+}
+
+.chat-window {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+.chat-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+.chat-header h2 {
+    margin: 0;
+    font-size: 1.2em;
+    flex-grow: 1;
+}
+.messages-area {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column-reverse;
+}
+.message {
+    padding: 8px 12px;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    max-width: 70%;
+    line-height: 1.4;
+}
+.message.sent {
+    background-color: var(--text-accent);
+    color: var(--bg-primary);
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+}
+.message.received {
+    background-color: var(--hover-bg);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+
+.message-input-area {
+    display: flex;
+    padding: 15px 20px;
+    border-top: 1px solid var(--border-color);
+    gap: 10px;
+}
+.message-input-area input {
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+.message-input-area button {
+    width: auto;
+}
+
+.back-btn {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+.close-chat-btn {
+    background: none;
+    border: none;
+    color: var(--muted-text);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0 5px;
+    line-height: 1;
+    transition: color 0.2s;
+    display: none; /* Caché par défaut */
+}
+
+.close-chat-btn:hover {
+    color: var(--text-primary);
+}
