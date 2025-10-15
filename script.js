@@ -131,7 +131,22 @@ function logout() {
     auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
 }
 
+// =======================================================================
+// NOUVELLE FONCTION UTILITAIRE POUR LA CRÉATION D'OBJET SLOT
+// =======================================================================
+/**
+ * Crée un objet slot standardisé à partir d'un document Firestore.
+ * @param {firebase.firestore.DocumentSnapshot} doc Le document Firestore.
+ * @returns {object|null} L'objet slot avec son ID, ou null si le document est invalide.
+ */
+function createSlotObjectFromDoc(doc) {
+    if (!doc || !doc.exists) return null;
+    return { id: doc.id, ...doc.data() };
+}
+
+
 function renderSlotItem(slot, targetListElement, isArchived = false) {
+    if (!slot) return; // Sécurité pour ne pas render un slot invalide
     const li = document.createElement('li'); li.className='slot-item';
     const info = document.createElement('div'); info.className='slot-info';
     const activityLine = document.createElement('div'); activityLine.className = 'subsub-line';
@@ -213,7 +228,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         participantsList.textContent = 'Participants cachés.';
     } else {
         participantsList.innerHTML = 'Membres: ';
-        slot.participants.forEach((p, index) => {
+        (slot.participants || []).forEach((p, index) => {
             const pseudoSpan = document.createElement('span');
             if (currentUser && p.uid !== currentUser.uid) {
                 pseudoSpan.className = 'clickable-pseudo';
@@ -221,7 +236,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
             }
             pseudoSpan.textContent = p.pseudo;
             participantsList.appendChild(pseudoSpan);
-            if (index < slot.participants.length - 1) {
+            if (index < (slot.participants || []).length - 1) {
                 participantsList.append(', ');
             }
         });
@@ -307,12 +322,6 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
             actions.appendChild(del);
         }
     }
-    const share = document.createElement('button'); share.textContent='🔗'; share.title='Partager';
-    share.className = 'action-btn ghost-action-btn';
-    share.onclick = ()=> {
-        const link = `${window.location.origin}${window.location.pathname}?slot=${slot.id}`;
-        navigator.clipboard.writeText(link).then(()=>alert('Lien copié !'));
-    };
     
     // NOUVEAU : Ajout du bouton de conversation de groupe
     if (currentUser && isParticipant && !isArchived) {
@@ -323,6 +332,13 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         chatBtn.onclick = () => startGroupChat(slot);
         actions.appendChild(chatBtn);
     }
+    
+    const share = document.createElement('button'); share.textContent='🔗'; share.title='Partager';
+    share.className = 'action-btn ghost-action-btn';
+    share.onclick = ()=> {
+        const link = `${window.location.origin}${window.location.pathname}?slot=${slot.id}`;
+        navigator.clipboard.writeText(link).then(()=>alert('Lien copié !'));
+    };
 
     actions.appendChild(share);
     li.appendChild(info);
@@ -648,7 +664,7 @@ function showMain(){
         const slotsMap = new Map();
         snapshots.forEach(snapshot => {
             snapshot.forEach(doc => {
-                slotsMap.set(doc.id, { id: doc.id, ...doc.data() });
+                slotsMap.set(doc.id, createSlotObjectFromDoc(doc)); // CORRECTION: Utilisation de la fonction utilitaire
             });
         });
     
@@ -656,11 +672,11 @@ function showMain(){
     
         // Filtrage par ville
         if (currentFilterCity !== "Toutes") {
-            allSlots = allSlots.filter(s => extractCity(s.location) === currentFilterCity);
+            allSlots = allSlots.filter(s => s && extractCity(s.location) === currentFilterCity);
         }
     
-        const currentSlots = allSlots.filter(s => !isDateInPast(s.date));
-        const archivedSlots = allSlots.filter(s => isDateInPast(s.date));
+        const currentSlots = allSlots.filter(s => s && !isDateInPast(s.date));
+        const archivedSlots = allSlots.filter(s => s && isDateInPast(s.date));
     
         // Tri
         currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
@@ -809,13 +825,15 @@ async function loadUserSlots() {
     list.innerHTML = '';
     const snapshot = await db.collection('slots').where('owner', '==', currentUser.uid).orderBy('date', 'asc').get();
     
-    const currentSlots = snapshot.docs.filter(doc => !isDateInPast(doc.data().date));
+    const currentSlots = snapshot.docs
+        .map(createSlotObjectFromDoc) // CORRECTION: Utilisation de la fonction utilitaire
+        .filter(slot => slot && !isDateInPast(slot.date));
     
     if (currentSlots.length === 0) {
         list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Vous n\'avez créé aucun créneau à venir.</li>';
         return;
     }
-    currentSlots.forEach(doc => renderSlotItem({ id: doc.id, ...doc.data() }, list, false));
+    currentSlots.forEach(slot => renderSlotItem(slot, list, false));
 }
 
 async function loadJoinedSlots() {
@@ -831,8 +849,8 @@ async function loadJoinedSlots() {
     
     let hasJoinedSlots = false;
     snapshot.forEach(doc => {
-        const slot = { id: doc.id, ...doc.data() };
-        if (slot.owner !== currentUser.uid && !isDateInPast(slot.date)) {
+        const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+        if (slot && slot.owner !== currentUser.uid && !isDateInPast(slot.date)) {
             hasJoinedSlots = true;
             renderSlotItem(slot, list, false);
         }
@@ -857,8 +875,8 @@ async function loadArchivedSlots() {
 
     const processSnapshot = (snapshot) => {
         snapshot.forEach(doc => {
-            const slot = { id: doc.id, ...doc.data() };
-            if (isDateInPast(slot.date)) {
+            const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+            if (slot && isDateInPast(slot.date)) {
                 archivedSlotsMap.set(doc.id, slot);
             }
         });
@@ -944,8 +962,8 @@ async function loadPendingInvitations() {
     }
     let invitationsCount = 0;
     snapshot.forEach(doc => {
-        const slot = { id: doc.id, ...doc.data() };
-        if (!slot.participants_uid.includes(currentUser.uid)) {
+        const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+        if (slot && !slot.participants_uid.includes(currentUser.uid)) {
             invitationsCount++;
             const li = document.createElement('li');
             li.className = 'invitation-item';
@@ -1002,8 +1020,9 @@ function checkShared(){
     closeBtn.onclick = closeModal;
     window.onclick = (event) => { if (event.target == modal) { closeModal(); } };
     db.collection('slots').doc(slotId).get().then(doc => {
-        if(!doc.exists) return;
-        const slot = { id: doc.id, ...doc.data() };
+        const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+        if(!slot) return;
+        
         const isParticipant = currentUser && (slot.participants_uid || []).includes(currentUser.uid);
         const isInvited = currentUser && (slot.invited_uids || []).includes(currentUser.uid);
         if (slot.private && !isParticipant && !isInvited) return;
@@ -1322,6 +1341,11 @@ async function startChat(otherUserId, otherUserPseudo) {
 async function startGroupChat(slot) {
     if (!currentUser || !slot.participants_uid.includes(currentUser.uid)) {
         return alert("Vous devez être participant pour accéder à la conversation de groupe.");
+    }
+    // CORRECTION : S'assurer que slot.id est bien présent avant de continuer
+    if (!slot.id) {
+        console.error("Tentative de démarrer un chat de groupe sans ID de créneau.", slot);
+        return alert("Une erreur est survenue, impossible de trouver la conversation (ID manquant).");
     }
     const chatId = `group_${slot.id}`;
     const chatRef = db.collection('chats').doc(chatId);
