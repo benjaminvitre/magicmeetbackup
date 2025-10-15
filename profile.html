@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Profil 👤 - Magic Meet!</title>
+    <title>Profil - Magic Meet!</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -30,10 +30,9 @@
             </svg>
         </a>
         <a class="home-link" href="index.html">🏠 Accueil</a>
-        <h1 class="site-title">Profil 👤</h1>
+        <h1 class="site-title">Profil</h1>
         <nav class="header-right">
-            <a id="messagerie-link" href="messagerie.html" class="ghost-btn" style="display:none;">Messagerie 💬</a>
-            <button id="logout-profile" class="ghost-btn">Se déconnecter</button>
+            <a id="messagerie-link" href="messages.html" class="ghost-btn" style="display:none;">Messages 💬</a>
         </nav>
     </header>
 
@@ -55,6 +54,7 @@
 
                 <button id="save-profile-btn" type="submit">Enregistrer les modifications</button>
             </form>
+             <button id="logout-profile" class="action-btn leave-btn" style="margin-top: 15px;">Se déconnecter</button>
         </section>
         
         <section class="card">
@@ -89,11 +89,6 @@
                 </ul>
         </section>
 
-        <section class="card">
-            <h2>Archives 📜</h2>
-            <ul id="archived-slots"></ul>
-        </section>
-
     </main>
 
     <div id="edit-slot-modal" class="modal">
@@ -117,9 +112,6 @@
 
                 <label for="edit-slot-location">Lieu</label>
                 <input id="edit-slot-location" type="text" required />
-
-                <label for="edit-slot-details">Détails <span class="muted-text">(optionnel, 35 car. max)</span></label>
-                <input id="edit-slot-details" type="text" placeholder="Ex: On se retrouve devant l'entrée" maxlength="35" />
 
                 <div class="inline-fields">
                     <div>
@@ -147,12 +139,12 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script>
       const firebaseConfig = {
-  apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
-  authDomain: "magicmeet-947cf.firebaseapp.com",
-  projectId: "magicmeet-947cf",
-  storageBucket: "magicmeet-947cf.firebasestorage.app",
-  messagingSenderId: "400119032453",
-  appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
+        apiKey: "VOTRE_API_KEY",
+        authDomain: "VOTRE_PROJET.firebaseapp.com",
+        projectId: "VOTRE_PROJET_ID",
+        storageBucket: "VOTRE_PROJET.appspot.com",
+        messagingSenderId: "VOTRE_SENDER_ID",
+        appId: "VOTRE_APP_ID"
       };
       
       firebase.initializeApp(firebaseConfig);
