@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Messagerie - Magic Meet!</title>
+    <title>Messages - Magic Meet!</title>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -30,32 +30,17 @@
             </svg>
         </a>
         <a class="home-link" href="index.html">🏠 Accueil</a>
-        <h1 class="site-title">Messagerie</h1>
+        <h1 class="site-title">Messages</h1>
         <nav class="header-right">
-             <a id="profile-link" href="profile.html" class="ghost-btn" style="display:none;">Profil 👤</a>
+             <a id="profile-link" href="profile.html" class="ghost-btn" style="display:none;">Profil</a>
         </nav>
     </header>
 
-    <main class="messaging-container">
-        <aside class="conversations-list card">
+    <main>
+        <section class="card">
             <h2>Conversations</h2>
-            <ul id="conv-list">
-                <li class="muted-text">Chargement...</li>
-            </ul>
-        </aside>
-
-        <section class="chat-window card">
-            <header class="chat-header">
-                <button id="back-to-conv-btn" class="back-btn">←</button>
-                <h2 id="chat-with-name">Sélectionnez une conversation</h2>
-                <button id="close-chat" class="close-chat-btn">&times;</button>
-            </header>
-            <div class="messages-area" id="messages-area">
+            <div id="conv-list-container">
                 </div>
-            <footer class="message-input-area">
-                <input type="text" id="message-input" placeholder="Écrivez votre message..." disabled>
-                <button id="send-message-btn" class="action-btn" disabled>Envoyer</button>
-            </footer>
         </section>
     </main>
 
@@ -64,12 +49,13 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script>
       const firebaseConfig = {
-  apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
+     apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
   authDomain: "magicmeet-947cf.firebaseapp.com",
   projectId: "magicmeet-947cf",
   storageBucket: "magicmeet-947cf.firebasestorage.app",
   messagingSenderId: "400119032453",
-  appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
+  appId: "1:400119032453:web:8e84695eea557a5aa5d7ec",
+  measurementId: "G-VJYL6HSM43"
       };
       
       firebase.initializeApp(firebaseConfig);
