@@ -1324,4 +1324,76 @@ async function startGroupChat(slot) {
     // C'est le premier point d'entrée quand on clique. Vérifions ce que la fonction reçoit.
     console.log("startGroupChat a été appelée avec le créneau :", slot);
 
-    if (!currentUser || !slot.participants_uid.includes(currentUser.
+    if (!currentUser || !slot.participants_uid.includes(currentUser.uid)) {
+        return alert("Vous devez être participant pour accéder à la conversation de groupe.");
+    }
+
+    if (!slot.id) {
+        console.error("ERREUR CRITIQUE : Tentative de démarrer un chat de groupe mais l'ID du créneau est manquant !", slot);
+        return alert("Une erreur est survenue, impossible de trouver la conversation (ID du créneau manquant).");
+    }
+
+    const chatId = `group_${slot.id}`;
+    const chatRef = db.collection('chats').doc(chatId);
+    const chatDoc = await chatRef.get();
+
+    if (!chatDoc.exists) {
+        console.log(`La conversation de groupe pour le créneau ${slot.id} n'existe pas. Création...`);
+        await chatRef.set({
+            isGroupChat: true,
+            groupName: slot.name,
+            members_uid: slot.participants_uid,
+            participants: slot.participants,
+            lastMessageText: "Conversation de groupe créée.",
+            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            createdBy: currentUser.uid,
+            slotId: slot.id
+        });
+    } else {
+        console.log(`La conversation de groupe pour le créneau ${slot.id} existe déjà. Redirection...`);
+    }
+    
+    window.location.href = `messagerie.html?chatId=${chatId}`;
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    auth.onAuthStateChanged(async user => {
+        if (user) {
+            const userDocRef = db.collection('users').doc(user.uid);
+            const userDoc = await userDocRef.get();
+            if (userDoc.exists) {
+                currentUser = { uid: user.uid, email: user.email, ...userDoc.data() };
+            } else {
+                currentUser = { uid: user.uid, email: user.email, pseudo: user.email.split('@')[0] };
+            }
+            checkShared();
+            if (document.getElementById('profile-main')) {
+                handleProfilePage();
+            } else if (document.getElementById('main-section')) {
+                showMain();
+            } else if (document.querySelector('.messaging-container')) {
+                handleMessagingPage();
+            }
+        } else {
+            currentUser = null;
+            checkShared();
+            if (document.getElementById('auth-section')) {
+                 document.getElementById('auth-section').style.display = 'flex';
+                 document.getElementById('main-section').style.display = 'none';
+            } else if (document.getElementById('profile-main')) {
+                 window.location.href = 'index.html';
+            } else if (document.querySelector('.messaging-container')) {
+                window.location.href = 'index.html';
+            }
+        }
+        updateHeaderDisplay();
+    });
+    
+    const logoutProfile = document.getElementById('logout-profile');
+    if (logoutProfile) logoutProfile.addEventListener('click', logout);
+
+    if (document.getElementById('main-section')) {
+        handleIndexPageListeners();
+    }
+});
