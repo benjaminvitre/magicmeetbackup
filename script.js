@@ -1304,6 +1304,9 @@ async function startChat(otherUserId, otherUserPseudo) {
 // == CORRECTION MAJEURE DE LA FONCTION DE CHAT DE GROUPE ==
 // =======================================================================
 async function startGroupChat(slotId) {
+  // LIGNE DE VÉRIFICATION AJOUTÉE :
+    console.log("Tentative de démarrage de la conversation de groupe pour le créneau ID :", slotId);
+  
     if (!slotId) {
         console.error("ERREUR : startGroupChat appelée sans ID de créneau.");
         return alert("Une erreur est survenue (ID de créneau manquant).");
