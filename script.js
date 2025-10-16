@@ -1330,7 +1330,6 @@ async function startChat(otherUserId, otherUserPseudo) {
     
     await chatRef.set(chatData, { merge: true });
     
-    // On vérifie si un premier message existe déjà
     const chatDocAfterSet = await chatRef.get();
     if (!chatDocAfterSet.data().lastMessageText) {
         await chatRef.update({
