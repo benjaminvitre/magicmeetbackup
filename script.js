@@ -78,26 +78,15 @@ function formatDateToWords(dateString){
 function extractCity(locationText) {
     if (!locationText) return '';
     const parts = locationText.split(',').map(p => p.trim());
-
-    // Si une virgule est présente, on suppose que la ville est dans la dernière partie.
     if (parts.length > 1) {
         const lastPart = parts[parts.length - 1];
-        // On retire les chiffres (code postal) et on nettoie.
         return lastPart.replace(/[0-9]/g, '').trim();
     }
-
-    // S'il n'y a pas de virgule, c'est plus ambigu (ça peut être une ville ou une adresse).
-    // On évite de retourner une adresse en cherchant des mots-clés typiques des rues.
     const streetIndicators = ['rue', 'avenue', 'boulevard', 'impasse', 'place', 'allée', 'chemin'];
     const lowerCaseText = locationText.toLowerCase();
-    
     if (streetIndicators.some(indicator => lowerCaseText.includes(indicator))) {
-        // C'est probablement une adresse, on ne peut pas extraire la ville de manière fiable.
-        // On retourne une chaîne vide pour ne pas polluer le filtre des villes.
         return '';
     }
-
-    // Si aucun indicateur de rue n'est trouvé, on suppose que c'est une ville.
     return locationText.replace(/[0-9]/g, '').trim();
 }
 
@@ -131,14 +120,6 @@ function logout() {
     auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
 }
 
-// =======================================================================
-// NOUVELLE FONCTION UTILITAIRE POUR LA CRÉATION D'OBJET SLOT
-// =======================================================================
-/**
- * Crée un objet slot standardisé à partir d'un document Firestore.
- * @param {firebase.firestore.DocumentSnapshot} doc Le document Firestore.
- * @returns {object|null} L'objet slot avec son ID, ou null si le document est invalide.
- */
 function createSlotObjectFromDoc(doc) {
     if (!doc || !doc.exists) return null;
     return { id: doc.id, ...doc.data() };
@@ -146,7 +127,11 @@ function createSlotObjectFromDoc(doc) {
 
 
 function renderSlotItem(slot, targetListElement, isArchived = false) {
-    if (!slot) return; // Sécurité pour ne pas render un slot invalide
+    // --- POINT DE CONTRÔLE N°1 ---
+    // Vérifions ici que l'objet 'slot' reçu contient bien un 'id'.
+    console.log("renderSlotItem est appelé pour le créneau :", slot);
+
+    if (!slot) return;
     const li = document.createElement('li'); li.className='slot-item';
     const info = document.createElement('div'); info.className='slot-info';
     const activityLine = document.createElement('div'); activityLine.className = 'subsub-line';
@@ -258,7 +243,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         if (typeof loadJoinedSlots === 'function' && document.getElementById('joined-slots')) loadJoinedSlots();
         if (typeof loadArchivedSlots === 'function' && document.getElementById('archived-slots')) loadArchivedSlots();
     };
-    if (currentUser && !isArchived) { // On n'affiche les boutons d'action que si le créneau n'est pas archivé
+    if (currentUser && !isArchived) {
         if (targetListElement.id === 'slots-list' || targetListElement.id === 'user-slots') {
             if (!isParticipant){
                 const joinBtn = document.createElement('button');
@@ -323,13 +308,17 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         }
     }
     
-    // NOUVEAU : Ajout du bouton de conversation de groupe
     if (currentUser && isParticipant && !isArchived) {
         const chatBtn = document.createElement('button');
         chatBtn.textContent = '💬';
         chatBtn.title = 'Conversation de groupe';
         chatBtn.className = 'action-btn ghost-action-btn';
-        chatBtn.onclick = () => startGroupChat(slot);
+        
+        // --- POINT DE CONTRÔLE N°2 ---
+        // Vérifions l'ID du créneau juste avant d'assigner le clic.
+        console.log(`Bouton Chat créé pour le créneau ID: ${slot.id}`);
+        
+        chatBtn.addEventListener('click', () => startGroupChat(slot));
         actions.appendChild(chatBtn);
     }
     
@@ -375,6 +364,8 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
 }
 
 
+// ... (Le reste du fichier reste identique jusqu'à la fonction startGroupChat)
+// ... (Copiez-collez le reste de votre fichier existant ici, de handleIndexPageListeners jusqu'à la fin, puis remplacez la fonction startGroupChat par celle ci-dessous)
 // =======================================================================
 // FONCTIONS PRINCIPALES PAR PAGE
 // =======================================================================
@@ -621,7 +612,7 @@ function showMain(){
         snapshot.forEach(doc => { 
             if(doc.data().location) {
                 const city = extractCity(doc.data().location);
-                if (city) { // On n'ajoute que si la ville a été extraite
+                if (city) {
                     cities.add(city);
                 }
             }
@@ -664,13 +655,12 @@ function showMain(){
         const slotsMap = new Map();
         snapshots.forEach(snapshot => {
             snapshot.forEach(doc => {
-                slotsMap.set(doc.id, createSlotObjectFromDoc(doc)); // CORRECTION: Utilisation de la fonction utilitaire
+                slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
             });
         });
     
         let allSlots = Array.from(slotsMap.values());
     
-        // Filtrage par ville
         if (currentFilterCity !== "Toutes") {
             allSlots = allSlots.filter(s => s && extractCity(s.location) === currentFilterCity);
         }
@@ -678,22 +668,19 @@ function showMain(){
         const currentSlots = allSlots.filter(s => s && !isDateInPast(s.date));
         const archivedSlots = allSlots.filter(s => s && isDateInPast(s.date));
     
-        // Tri
         currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
         archivedSlots.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
     
-        // Affichage des créneaux actuels
         if (currentSlots.length === 0) {
             list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau ne correspond à vos filtres.</li>';
         } else {
-            currentSlots.slice(0, 10).forEach(slot => renderSlotItem(slot, list, false)); // isArchived = false
+            currentSlots.slice(0, 10).forEach(slot => renderSlotItem(slot, list, false));
         }
     
-        // Affichage des archives
         if (archivedSlots.length === 0) {
             archivedList.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau archivé.</li>';
         } else {
-            archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true)); // isArchived = true
+            archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true));
         }
     }
 
@@ -731,7 +718,7 @@ function showMain(){
         const time = (document.getElementById('slot-time')?.value||'').trim();
         const activity = formActivitySelect.value;
         const groupName = formGroupInput.value.trim();
-        const details = (document.getElementById('slot-details')?.value || '').trim(); // Récupération des détails
+        const details = (document.getElementById('slot-details')?.value || '').trim();
         if (!activity) return alert('Choisis d’abord une activité (ex: Jeux)');
         if (!name || !location || !date || !time) return alert('Remplis les champs nom, lieu, date et heure');
         let groupId = null;
@@ -756,7 +743,7 @@ function showMain(){
         const newSlot = {
             activity: activity, sub: formSubSelect.value || '', subsub: subsubSelect.value || '',
             name: name, location: location, date: date, time: time,
-            details: details, // Ajout des détails au nouvel objet
+            details: details,
             private: !!document.getElementById('private-slot')?.checked,
             groupId: groupId,
             groupName: groupName || null,
@@ -787,7 +774,7 @@ function handleProfilePage() {
     loadJoinedSlots();
     loadUserGroups();
     loadPendingInvitations();
-    loadArchivedSlots(); // Appel de la nouvelle fonction pour les archives
+    loadArchivedSlots();
     const createGroupBtn = document.getElementById('create-group-btn');
     const groupNameInput = document.getElementById('group-name-input');
     const privateGroupCheckbox = document.getElementById('private-group');
@@ -826,7 +813,7 @@ async function loadUserSlots() {
     const snapshot = await db.collection('slots').where('owner', '==', currentUser.uid).orderBy('date', 'asc').get();
     
     const currentSlots = snapshot.docs
-        .map(createSlotObjectFromDoc) // CORRECTION: Utilisation de la fonction utilitaire
+        .map(createSlotObjectFromDoc)
         .filter(slot => slot && !isDateInPast(slot.date));
     
     if (currentSlots.length === 0) {
@@ -849,7 +836,7 @@ async function loadJoinedSlots() {
     
     let hasJoinedSlots = false;
     snapshot.forEach(doc => {
-        const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+        const slot = createSlotObjectFromDoc(doc);
         if (slot && slot.owner !== currentUser.uid && !isDateInPast(slot.date)) {
             hasJoinedSlots = true;
             renderSlotItem(slot, list, false);
@@ -875,7 +862,7 @@ async function loadArchivedSlots() {
 
     const processSnapshot = (snapshot) => {
         snapshot.forEach(doc => {
-            const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+            const slot = createSlotObjectFromDoc(doc);
             if (slot && isDateInPast(slot.date)) {
                 archivedSlotsMap.set(doc.id, slot);
             }
@@ -891,9 +878,9 @@ async function loadArchivedSlots() {
     }
 
     const sortedArchived = Array.from(archivedSlotsMap.values())
-        .sort((a, b) => new Date(b.date) - new Date(a.date)); // Tri par date, du plus récent au plus ancien
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    sortedArchived.forEach(slot => renderSlotItem(slot, list, true)); // isArchived = true
+    sortedArchived.forEach(slot => renderSlotItem(slot, list, true));
 }
 
 
@@ -962,7 +949,7 @@ async function loadPendingInvitations() {
     }
     let invitationsCount = 0;
     snapshot.forEach(doc => {
-        const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+        const slot = createSlotObjectFromDoc(doc);
         if (slot && !slot.participants_uid.includes(currentUser.uid)) {
             invitationsCount++;
             const li = document.createElement('li');
@@ -1020,7 +1007,7 @@ function checkShared(){
     closeBtn.onclick = closeModal;
     window.onclick = (event) => { if (event.target == modal) { closeModal(); } };
     db.collection('slots').doc(slotId).get().then(doc => {
-        const slot = createSlotObjectFromDoc(doc); // CORRECTION: Utilisation de la fonction utilitaire
+        const slot = createSlotObjectFromDoc(doc);
         if(!slot) return;
         
         const isParticipant = currentUser && (slot.participants_uid || []).includes(currentUser.uid);
@@ -1079,7 +1066,7 @@ function openEditModal(slot) {
     document.getElementById('edit-slot-id').value = slot.id;
     document.getElementById('edit-slot-name').value = slot.name;
     document.getElementById('edit-slot-location').value = slot.location;
-    document.getElementById('edit-slot-details').value = slot.details || ''; // Pré-remplir le champ détails
+    document.getElementById('edit-slot-details').value = slot.details || '';
     document.getElementById('edit-slot-date').value = slot.date;
     document.getElementById('edit-slot-time').value = slot.time;
     document.getElementById('edit-private-slot').checked = slot.private;
@@ -1117,7 +1104,7 @@ function openEditModal(slot) {
         const updatedSlot = {
             name: document.getElementById('edit-slot-name').value,
             location: document.getElementById('edit-slot-location').value,
-            details: document.getElementById('edit-slot-details').value.trim(), // Sauvegarder les détails modifiés
+            details: document.getElementById('edit-slot-details').value.trim(),
             date: document.getElementById('edit-slot-date').value,
             time: document.getElementById('edit-slot-time').value,
             private: document.getElementById('edit-private-slot').checked,
@@ -1147,7 +1134,7 @@ function handleMessagingPage() {
     }
     const messagingContainer = document.querySelector('.messaging-container');
     const backBtn = document.getElementById('back-to-conv-btn');
-    const closeChatBtn = document.getElementById('close-chat'); // Nouveau bouton
+    const closeChatBtn = document.getElementById('close-chat');
     const convList = document.getElementById('conv-list');
     const chatWithName = document.getElementById('chat-with-name');
     const messagesArea = document.getElementById('messages-area');
@@ -1156,7 +1143,6 @@ function handleMessagingPage() {
     let currentChatId = null;
     let unsubscribeMessages = null;
 
-    // Fonction pour fermer et réinitialiser la vue de chat
     function closeChatWindow() {
         if (messagingContainer) messagingContainer.classList.remove('chat-active');
         if (unsubscribeMessages) unsubscribeMessages();
@@ -1169,7 +1155,6 @@ function handleMessagingPage() {
         unsubscribeMessages = null;
         if(closeChatBtn) closeChatBtn.style.display = 'none';
 
-        // Déselectionner la conversation active dans la liste
         const activeConv = document.querySelector('.conv-item.active');
         if (activeConv) activeConv.classList.remove('active');
     }
@@ -1191,7 +1176,6 @@ function handleMessagingPage() {
             li.dataset.chatId = doc.id;
 
             if (chat.isGroupChat) {
-                // Logique pour conversation de groupe
                 li.innerHTML = `
                     <strong>${chat.groupName} 💬</strong><br>
                     <small>${chat.lastMessageText || '...'}</small>
@@ -1199,13 +1183,12 @@ function handleMessagingPage() {
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    loadMessages(doc.id, chat.groupName, true); // isGroup = true
+                    loadMessages(doc.id, chat.groupName, true);
                     if (messagingContainer) {
                         messagingContainer.classList.add('chat-active');
                     }
                 });
             } else {
-                // Logique pour conversation 1-on-1
                 const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
                 if (!otherUser) return;
                 li.innerHTML = `
@@ -1215,7 +1198,7 @@ function handleMessagingPage() {
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    loadMessages(doc.id, otherUser.pseudo, false); // isGroup = false
+                    loadMessages(doc.id, otherUser.pseudo, false);
                     if (messagingContainer) {
                         messagingContainer.classList.add('chat-active');
                     }
@@ -1247,7 +1230,6 @@ function handleMessagingPage() {
                 messageDiv.className = 'message';
                 messageDiv.classList.add(message.senderId === currentUser.uid ? 'sent' : 'received');
 
-                // Si c'est un groupe et que le message n'est pas de nous, afficher le pseudo
                 if (isGroup && message.senderId !== currentUser.uid) {
                     const senderName = document.createElement('div');
                     senderName.className = 'message-sender';
@@ -1324,7 +1306,7 @@ async function startChat(otherUserId, otherUserPseudo) {
     const chatDoc = await chatRef.get();
     if (!chatDoc.exists) {
         await chatRef.set({
-            isGroupChat: false, // On précise que ce n'est pas un groupe
+            isGroupChat: false,
             members_uid: [currentUser.uid, otherUserId],
             participants: [
                 { uid: currentUser.uid, pseudo: currentUser.pseudo },
@@ -1337,73 +1319,9 @@ async function startChat(otherUserId, otherUserPseudo) {
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
-// NOUVELLE FONCTION : Démarrer ou rejoindre une conversation de groupe
 async function startGroupChat(slot) {
-    if (!currentUser || !slot.participants_uid.includes(currentUser.uid)) {
-        return alert("Vous devez être participant pour accéder à la conversation de groupe.");
-    }
-    // CORRECTION : S'assurer que slot.id est bien présent avant de continuer
-    if (!slot.id) {
-        console.error("Tentative de démarrer un chat de groupe sans ID de créneau.", slot);
-        return alert("Une erreur est survenue, impossible de trouver la conversation (ID manquant).");
-    }
-    const chatId = `group_${slot.id}`;
-    const chatRef = db.collection('chats').doc(chatId);
-    const chatDoc = await chatRef.get();
-    if (!chatDoc.exists) {
-        // Créer la conversation de groupe si elle n'existe pas
-        await chatRef.set({
-            isGroupChat: true,
-            groupName: slot.name,
-            members_uid: slot.participants_uid,
-            participants: slot.participants,
-            lastMessageText: "Conversation de groupe créée.",
-            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: currentUser.uid,
-            slotId: slot.id
-        });
-    }
-    window.location.href = `messagerie.html?chatId=${chatId}`;
-}
+    // --- POINT DE CONTRÔLE N°3 ---
+    // C'est le premier point d'entrée quand on clique. Vérifions ce que la fonction reçoit.
+    console.log("startGroupChat a été appelée avec le créneau :", slot);
 
-
-document.addEventListener('DOMContentLoaded', () => {
-    auth.onAuthStateChanged(async user => {
-        if (user) {
-            const userDocRef = db.collection('users').doc(user.uid);
-            const userDoc = await userDocRef.get();
-            if (userDoc.exists) {
-                currentUser = { uid: user.uid, email: user.email, ...userDoc.data() };
-            } else {
-                currentUser = { uid: user.uid, email: user.email, pseudo: user.email.split('@')[0] };
-            }
-            checkShared();
-            if (document.getElementById('profile-main')) {
-                handleProfilePage();
-            } else if (document.getElementById('main-section')) {
-                showMain();
-            } else if (document.querySelector('.messaging-container')) {
-                handleMessagingPage();
-            }
-        } else {
-            currentUser = null;
-            checkShared();
-            if (document.getElementById('auth-section')) {
-                 document.getElementById('auth-section').style.display = 'flex';
-                 document.getElementById('main-section').style.display = 'none';
-            } else if (document.getElementById('profile-main')) {
-                 window.location.href = 'index.html';
-            } else if (document.querySelector('.messaging-container')) {
-                window.location.href = 'index.html';
-            }
-        }
-        updateHeaderDisplay();
-    });
-    
-    const logoutProfile = document.getElementById('logout-profile');
-    if (logoutProfile) logoutProfile.addEventListener('click', logout);
-
-    if (document.getElementById('main-section')) {
-        handleIndexPageListeners();
-    }
-});
+    if (!currentUser || !slot.participants_uid.includes(currentUser.
