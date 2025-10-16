@@ -32,8 +32,8 @@
         </a>
         <h1 class="site-title">MagicMeet!</h1>
         <nav class="header-right">
-            <a id="profile-link" href="profile.html" class="ghost-btn" style="display:none;">Profil 👤</a>
-            <a id="messagerie-link" href="messagerie.html" class="ghost-btn" style="display:none;">Messagerie 💬</a>
+            <a id="profile-link" href="profile.html" class="ghost-btn" style="display:none;">Profil</a>
+            <a id="messagerie-link" href="messages.html" class="ghost-btn" style="display:none;">Messages 💬</a>
         </nav>
     </header>
 
@@ -109,10 +109,6 @@
 
                 <label for="slot-location">Lieu <span class="muted-text">(Ex: 10 rue de lappe, Paris)</span></label>
                 <input id="slot-location" type="text" placeholder="Adresse complète ou nom du lieu" required />
-                
-                <label for="slot-details">Détails <span class="muted-text">(optionnel, 35 car. max)</span></label>
-                <input id="slot-details" type="text" placeholder="Ex: On se retrouve devant l'entrée" maxlength="35" />
-
                 <div id="location-suggestion-box" class="suggestion-box" style="display:none;"></div>
                 <a id="location-link" href="#" target="_blank" style="display:none; font-size: 0.8em; margin-bottom: 10px;">Voir sur Google Maps</a>
 
@@ -139,13 +135,13 @@
 
 
         <section class="card slot-list-card">
-            <h2>Créneaux disponibles 👇</h2>
+            <h2>Créneaux disponibles 🎸</h2>
             <ul id="slots-list"></ul>
         </section>
 
         <section class="card slot-list-card">
-            <h2>Archives 📜</h2>
-            <ul id="archived-slots-list"></ul>
+            <h2>Événements passés 📜</h2>
+            <ul id="past-slots-list"></ul>
         </section>
 
     </main>
@@ -184,9 +180,6 @@
                 <label for="edit-slot-location">Lieu</label>
                 <input id="edit-slot-location" type="text" required />
 
-                <label for="edit-slot-details">Détails <span class="muted-text">(optionnel, 35 car. max)</span></label>
-                <input id="edit-slot-details" type="text" placeholder="Ex: On se retrouve devant l'entrée" maxlength="35" />
-
                 <div class="inline-fields">
                     <div>
                         <label for="edit-slot-date">Date</label>
@@ -220,7 +213,6 @@
   storageBucket: "magicmeet-947cf.firebasestorage.app",
   messagingSenderId: "400119032453",
   appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
-
       };
 
       firebase.initializeApp(firebaseConfig);
