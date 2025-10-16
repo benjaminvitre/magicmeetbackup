@@ -1107,6 +1107,9 @@ function openEditModal(slot) {
     });
 }
 
+// =======================================================================
+// == FONCTION MESSAGERIE ENTIÈREMENT MISE À JOUR ==
+// =======================================================================
 function handleMessagingPage() {
     if (!currentUser) {
         window.location.href = 'index.html';
@@ -1120,6 +1123,8 @@ function handleMessagingPage() {
     const messagesArea = document.getElementById('messages-area');
     const messageInput = document.getElementById('message-input');
     const sendMessageBtn = document.getElementById('send-message-btn');
+    // NOUVEL ÉLÉMENT
+    const chatMembers = document.getElementById('chat-members');
     let currentChatId = null;
     let unsubscribeMessages = null;
 
@@ -1129,6 +1134,8 @@ function handleMessagingPage() {
         
         messagesArea.innerHTML = '';
         chatWithName.textContent = 'Sélectionnez une conversation';
+        // NOUVEAU : Vider la liste des membres
+        if(chatMembers) chatMembers.innerHTML = '';
         messageInput.disabled = true;
         sendMessageBtn.disabled = true;
         currentChatId = null;
@@ -1163,7 +1170,8 @@ function handleMessagingPage() {
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    loadMessages(doc.id, chat.groupName, true);
+                    // MODIFIÉ : On passe l'objet chat entier
+                    loadMessages(doc.id, chat);
                     if (messagingContainer) {
                         messagingContainer.classList.add('chat-active');
                     }
@@ -1178,7 +1186,8 @@ function handleMessagingPage() {
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    loadMessages(doc.id, otherUser.pseudo, false);
+                    // MODIFIÉ : On passe l'objet chat entier
+                    loadMessages(doc.id, chat);
                     if (messagingContainer) {
                         messagingContainer.classList.add('chat-active');
                     }
@@ -1191,10 +1200,39 @@ function handleMessagingPage() {
     if (backBtn) backBtn.addEventListener('click', closeChatWindow);
     if (closeChatBtn) closeChatBtn.addEventListener('click', closeChatWindow);
 
-    function loadMessages(chatId, chatName, isGroup) {
+    // MODIFIÉ : La fonction accepte maintenant l'objet chat entier
+    function loadMessages(chatId, chat) {
         currentChatId = chatId;
+        const isGroup = chat.isGroupChat;
+        const chatName = isGroup ? chat.groupName : chat.participants.find(p => p.uid !== currentUser.uid)?.pseudo || "Utilisateur";
+        
         chatWithName.textContent = chatName;
         messagesArea.innerHTML = '';
+        chatMembers.innerHTML = ''; // Vider la liste
+        
+        // NOUVEAU : Afficher les participants
+        const membersPrefix = document.createElement('span');
+        membersPrefix.textContent = 'Participants : ';
+        chatMembers.appendChild(membersPrefix);
+
+        chat.participants.forEach((member, index) => {
+            const memberSpan = document.createElement('span');
+            memberSpan.textContent = member.pseudo;
+
+            if (member.uid !== currentUser.uid) {
+                memberSpan.className = 'chat-member-link';
+                memberSpan.title = `Envoyer un message à ${member.pseudo}`;
+                memberSpan.onclick = () => startChat(member.uid, member.pseudo);
+            }
+
+            chatMembers.appendChild(memberSpan);
+
+            // Ajouter une virgule entre les noms
+            if (index < chat.participants.length - 1) {
+                chatMembers.append(', ');
+            }
+        });
+
         messageInput.disabled = false;
         sendMessageBtn.disabled = false;
         if(closeChatBtn) closeChatBtn.style.display = 'block';
@@ -1258,17 +1296,10 @@ function handleMessagingPage() {
     if (initialChatId) {
         db.collection('chats').doc(initialChatId).get().then(doc => {
             if (doc.exists) {
+                // MODIFIÉ : On récupère l'objet chat entier
                 const chat = doc.data();
-                if (chat.isGroupChat) {
-                    loadMessages(initialChatId, chat.groupName, true);
-                    if (messagingContainer) messagingContainer.classList.add('chat-active');
-                } else {
-                    const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
-                    if (otherUser) {
-                        loadMessages(initialChatId, otherUser.pseudo, false);
-                        if (messagingContainer) messagingContainer.classList.add('chat-active');
-                    }
-                }
+                loadMessages(initialChatId, chat);
+                if (messagingContainer) messagingContainer.classList.add('chat-active');
                 setTimeout(() => {
                     document.querySelector(`.conv-item[data-chat-id="${initialChatId}"]`)?.classList.add('active');
                 }, 500);
@@ -1299,9 +1330,6 @@ async function startChat(otherUserId, otherUserPseudo) {
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
-// =======================================================================
-// == CORRECTION DÉFINITIVE DE LA FONCTION DE CHAT DE GROUPE ==
-// =======================================================================
 async function startGroupChat(slotId) {
     if (!slotId) {
         console.error("ERREUR : startGroupChat appelée sans ID de créneau.");
@@ -1330,11 +1358,7 @@ async function startGroupChat(slotId) {
 
         const chatId = `group_${slot.id}`;
         const chatRef = db.collection('chats').doc(chatId);
-
-        // NOUVELLE LOGIQUE : On utilise .set() avec merge:true. C'est un "upsert".
-        // On ne lit plus avant d'écrire, on écrit directement.
-        // Cela déclenchera soit la règle "create" (si le doc n'existe pas), 
-        // soit la règle "update" (s'il existe), qui sont toutes deux autorisées.
+        
         const chatData = {
             isGroupChat: true,
             groupName: slot.name,
@@ -1346,7 +1370,6 @@ async function startGroupChat(slotId) {
         
         await chatRef.set(chatData, { merge: true });
         
-        // On vérifie si un premier message existe déjà, sinon on l'ajoute.
         const chatDocAfterSet = await chatRef.get();
         if (!chatDocAfterSet.data().lastMessageText) {
             await chatRef.update({
