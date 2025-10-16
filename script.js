@@ -611,37 +611,29 @@ function showMain(){
         archivedList.innerHTML = '';
 
         try {
-            // Utilisation des filtres composites "OR" de Firebase
-            const { or, where } = firebase.firestore.Filter;
-            
-            let query;
-            const collectionRef = db.collection('slots');
+            const promises = [];
+            let publicQuery = db.collection('slots').where('private', '!=', true);
+            promises.push(publicQuery.get());
 
             if (currentUser) {
-                // Si l'utilisateur est connecté, on cherche les créneaux
-                // où (il est propriétaire) OU (il est participant) OU (le créneau est public)
-                query = collectionRef.where(
-                    or(
-                        where('owner', '==', currentUser.uid),
-                        where('participants_uid', 'array-contains', currentUser.uid),
-                        where('private', '!=', true)
-                    )
-                );
-            } else {
-                // Si l'utilisateur n'est pas connecté, on ne cherche que les créneaux publics
-                query = collectionRef.where('private', '!=', true);
+                let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
+                promises.push(ownerQuery.get());
+                let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
+                promises.push(participantQuery.get());
             }
 
-            const snapshot = await query.get();
+            const snapshots = await Promise.all(promises);
             const slotsMap = new Map();
-            snapshot.forEach(doc => {
-                slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
+            snapshots.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    if (!slotsMap.has(doc.id)) {
+                        slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
+                    }
+                });
             });
 
             let allSlots = Array.from(slotsMap.values());
             
-            // Les filtres suivants sont appliqués côté client car ils ne peuvent pas être combinés
-            // facilement avec une requête "OR" complexe.
             allSlots = allSlots.filter(slot => {
                 if (!slot) return false;
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
@@ -671,7 +663,7 @@ function showMain(){
 
         } catch (error) {
             console.error("Erreur lors du chargement des créneaux:", error);
-            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier vos règles de sécurité Firestore.</li>`;
+            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier les règles de sécurité Firebase.</li>`;
         }
     }
 
