@@ -600,6 +600,9 @@ function showMain(){
         }
     }
 
+    // =======================================================================
+    // == CORRECTION DÉFINITIVE DE L'AFFICHAGE DES CRÉNEAUX ==
+    // =======================================================================
     async function loadSlots() {
         const list = document.getElementById('slots-list');
         const archivedList = document.getElementById('archived-slots-list');
@@ -609,17 +612,23 @@ function showMain(){
 
         try {
             const promises = [];
+            // Requête 1: Créneaux publics (respecte les règles de sécurité)
             let publicQuery = db.collection('slots').where('private', '!=', true);
             promises.push(publicQuery.get());
 
+            // Si l'utilisateur est connecté, on ajoute les requêtes spécifiques pour ses créneaux privés
             if (currentUser) {
-                let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
+                // Requête 2: Créneaux privés où il est le propriétaire
+                let ownerQuery = db.collection('slots').where('private', '==', true).where('owner', '==', currentUser.uid);
                 promises.push(ownerQuery.get());
-                let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
+
+                // Requête 3: Créneaux privés où il est participant
+                let participantQuery = db.collection('slots').where('private', '==', true).where('participants_uid', 'array-contains', currentUser.uid);
                 promises.push(participantQuery.get());
             }
 
             const snapshots = await Promise.all(promises);
+
             const slotsMap = new Map();
             snapshots.forEach(snapshot => {
                 snapshot.forEach(doc => {
@@ -631,6 +640,7 @@ function showMain(){
 
             let allSlots = Array.from(slotsMap.values());
             
+            // Les filtres suivants sont appliqués côté client
             allSlots = allSlots.filter(slot => {
                 if (!slot) return false;
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
@@ -1107,9 +1117,6 @@ function openEditModal(slot) {
     });
 }
 
-// =======================================================================
-// == FONCTION MESSAGERIE ENTIÈREMENT MISE À JOUR ==
-// =======================================================================
 function handleMessagingPage() {
     if (!currentUser) {
         window.location.href = 'index.html';
@@ -1123,7 +1130,6 @@ function handleMessagingPage() {
     const messagesArea = document.getElementById('messages-area');
     const messageInput = document.getElementById('message-input');
     const sendMessageBtn = document.getElementById('send-message-btn');
-    // NOUVEL ÉLÉMENT
     const chatMembers = document.getElementById('chat-members');
     let currentChatId = null;
     let unsubscribeMessages = null;
@@ -1134,7 +1140,6 @@ function handleMessagingPage() {
         
         messagesArea.innerHTML = '';
         chatWithName.textContent = 'Sélectionnez une conversation';
-        // NOUVEAU : Vider la liste des membres
         if(chatMembers) chatMembers.innerHTML = '';
         messageInput.disabled = true;
         sendMessageBtn.disabled = true;
@@ -1170,7 +1175,6 @@ function handleMessagingPage() {
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    // MODIFIÉ : On passe l'objet chat entier
                     loadMessages(doc.id, chat);
                     if (messagingContainer) {
                         messagingContainer.classList.add('chat-active');
@@ -1186,7 +1190,6 @@ function handleMessagingPage() {
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    // MODIFIÉ : On passe l'objet chat entier
                     loadMessages(doc.id, chat);
                     if (messagingContainer) {
                         messagingContainer.classList.add('chat-active');
@@ -1200,7 +1203,6 @@ function handleMessagingPage() {
     if (backBtn) backBtn.addEventListener('click', closeChatWindow);
     if (closeChatBtn) closeChatBtn.addEventListener('click', closeChatWindow);
 
-    // MODIFIÉ : La fonction accepte maintenant l'objet chat entier
     function loadMessages(chatId, chat) {
         currentChatId = chatId;
         const isGroup = chat.isGroupChat;
@@ -1208,9 +1210,8 @@ function handleMessagingPage() {
         
         chatWithName.textContent = chatName;
         messagesArea.innerHTML = '';
-        chatMembers.innerHTML = ''; // Vider la liste
+        chatMembers.innerHTML = '';
         
-        // NOUVEAU : Afficher les participants
         const membersPrefix = document.createElement('span');
         membersPrefix.textContent = 'Participants : ';
         chatMembers.appendChild(membersPrefix);
@@ -1227,7 +1228,6 @@ function handleMessagingPage() {
 
             chatMembers.appendChild(memberSpan);
 
-            // Ajouter une virgule entre les noms
             if (index < chat.participants.length - 1) {
                 chatMembers.append(', ');
             }
@@ -1296,7 +1296,6 @@ function handleMessagingPage() {
     if (initialChatId) {
         db.collection('chats').doc(initialChatId).get().then(doc => {
             if (doc.exists) {
-                // MODIFIÉ : On récupère l'objet chat entier
                 const chat = doc.data();
                 loadMessages(initialChatId, chat);
                 if (messagingContainer) messagingContainer.classList.add('chat-active');
@@ -1309,24 +1308,36 @@ function handleMessagingPage() {
     loadConversations();
 }
 
-
+// =======================================================================
+// == CORRECTION DÉFINITIVE DE LA CRÉATION DE CONVERSATION ==
+// =======================================================================
 async function startChat(otherUserId, otherUserPseudo) {
     if (!currentUser || currentUser.uid === otherUserId) return;
     const chatId = [currentUser.uid, otherUserId].sort().join('_');
     const chatRef = db.collection('chats').doc(chatId);
-    const chatDoc = await chatRef.get();
-    if (!chatDoc.exists) {
-        await chatRef.set({
-            isGroupChat: false,
-            members_uid: [currentUser.uid, otherUserId],
-            participants: [
-                { uid: currentUser.uid, pseudo: currentUser.pseudo },
-                { uid: otherUserId, pseudo: otherUserPseudo }
-            ],
-            lastMessageText: "Début de la conversation...",
-            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+    
+    // On utilise la même stratégie "upsert" que pour les groupes
+    // pour éviter le paradoxe "lire-avant-d'écrire".
+    const chatData = {
+        isGroupChat: false,
+        members_uid: [currentUser.uid, otherUserId],
+        participants: [
+            { uid: currentUser.uid, pseudo: currentUser.pseudo },
+            { uid: otherUserId, pseudo: otherUserPseudo }
+        ],
+        lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    await chatRef.set(chatData, { merge: true });
+    
+    // On vérifie si un premier message existe déjà
+    const chatDocAfterSet = await chatRef.get();
+    if (!chatDocAfterSet.data().lastMessageText) {
+        await chatRef.update({
+            lastMessageText: "Début de la conversation..."
         });
     }
+    
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
