@@ -578,8 +578,6 @@ function showMain(){
 
     async function populateCityFilter() {
         if (!cityFilterSelect) return;
-        // Pour être sûr de ne pas avoir de problème de permission, on ne remplit ce filtre
-        // qu'avec les villes des créneaux publics.
         const snapshot = await db.collection('slots').where('private', '!=', true).get();
         const cities = new Set();
         snapshot.forEach(doc => { 
@@ -610,41 +608,21 @@ function showMain(){
         archivedList.innerHTML = '';
 
         try {
-            // 1. On prépare les promesses pour récupérer les différents types de créneaux
             const promises = [];
-
-            // Requête pour les créneaux publics
             let publicQuery = db.collection('slots').where('private', '!=', true);
-            if (currentFilterActivity !== "Toutes") { publicQuery = publicQuery.where('activity', '==', currentFilterActivity); }
-            if (currentFilterSub !== "Toutes") { publicQuery = publicQuery.where('sub', '==', currentFilterSub); }
-            if (currentFilterGroup !== "Toutes") { publicQuery = publicQuery.where('groupId', '==', currentFilterGroup); }
             promises.push(publicQuery.get());
 
-            // Si l'utilisateur est connecté, on ajoute les requêtes pour ses créneaux privés
             if (currentUser) {
-                // Créneaux où il est le propriétaire
-                let ownerQuery = db.collection('slots').where('private', '==', true).where('owner', '==', currentUser.uid);
-                if (currentFilterActivity !== "Toutes") { ownerQuery = ownerQuery.where('activity', '==', currentFilterActivity); }
-                if (currentFilterSub !== "Toutes") { ownerQuery = ownerQuery.where('sub', '==', currentFilterSub); }
-                if (currentFilterGroup !== "Toutes") { ownerQuery = ownerQuery.where('groupId', '==', currentFilterGroup); }
+                let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
                 promises.push(ownerQuery.get());
-
-                // Créneaux où il est participant (mais pas propriétaire)
-                let participantQuery = db.collection('slots').where('private', '==', true).where('participants_uid', 'array-contains', currentUser.uid);
-                if (currentFilterActivity !== "Toutes") { participantQuery = participantQuery.where('activity', '==', currentFilterActivity); }
-                if (currentFilterSub !== "Toutes") { participantQuery = participantQuery.where('sub', '==', currentFilterSub); }
-                if (currentFilterGroup !== "Toutes") { participantQuery = participantQuery.where('groupId', '==', currentFilterGroup); }
+                let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
                 promises.push(participantQuery.get());
             }
 
-            // 2. On exécute toutes les requêtes en parallèle
             const snapshots = await Promise.all(promises);
-
-            // 3. On fusionne les résultats en utilisant une Map pour éviter les doublons
             const slotsMap = new Map();
             snapshots.forEach(snapshot => {
                 snapshot.forEach(doc => {
-                    // On ne rajoute que si le créneau n'est pas déjà dans la map
                     if (!slotsMap.has(doc.id)) {
                         slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
                     }
@@ -652,13 +630,17 @@ function showMain(){
             });
 
             let allSlots = Array.from(slotsMap.values());
-
-            // 4. On applique le filtre de ville côté client
-            if (currentFilterCity !== "Toutes") {
-                allSlots = allSlots.filter(slot => slot && extractCity(slot.location) === currentFilterCity);
-            }
             
-            // 5. On trie et on affiche
+            // FILTRAGE COTE CLIENT
+            allSlots = allSlots.filter(slot => {
+                if (!slot) return false;
+                if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
+                if (currentFilterSub !== "Toutes" && slot.sub !== currentFilterSub) return false;
+                if (currentFilterGroup !== "Toutes" && slot.groupId !== currentFilterGroup) return false;
+                if (currentFilterCity !== "Toutes" && extractCity(slot.location) !== currentFilterCity) return false;
+                return true;
+            });
+            
             const currentSlots = allSlots.filter(s => s && !isDateInPast(s.date));
             const archivedSlots = allSlots.filter(s => s && isDateInPast(s.date));
         
@@ -1318,6 +1300,9 @@ async function startChat(otherUserId, otherUserPseudo) {
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
+// =======================================================================
+// == CORRECTION MAJEURE DE LA FONCTION DE CHAT DE GROUPE ==
+// =======================================================================
 async function startGroupChat(slotId) {
     if (!slotId) {
         console.error("ERREUR : startGroupChat appelée sans ID de créneau.");
@@ -1337,7 +1322,13 @@ async function startGroupChat(slotId) {
         }
         const slot = createSlotObjectFromDoc(slotDoc);
 
-        if (!slot.participants_uid || !slot.participants_uid.includes(currentUser.uid)) {
+        // Vérification cruciale : le créneau a-t-il les informations nécessaires ?
+        if (!slot.participants_uid || !slot.participants || !slot.name) {
+             console.error("Données manquantes sur le créneau pour créer la conversation :", slot);
+             return alert("Impossible de créer la conversation, les informations du créneau sont incomplètes.");
+        }
+
+        if (!slot.participants_uid.includes(currentUser.uid)) {
             return alert("Vous devez être participant pour accéder à cette conversation.");
         }
 
