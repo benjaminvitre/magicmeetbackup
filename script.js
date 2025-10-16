@@ -611,36 +611,37 @@ function showMain(){
         archivedList.innerHTML = '';
 
         try {
-            const promises = [];
-            // Requête 1: Créneaux publics (respecte les règles de sécurité)
-            let publicQuery = db.collection('slots').where('private', '!=', true);
-            promises.push(publicQuery.get());
+            // Utilisation des filtres composites "OR" de Firebase
+            const { or, where } = firebase.firestore.Filter;
+            
+            let query;
+            const collectionRef = db.collection('slots');
 
-            // Si l'utilisateur est connecté, on ajoute les requêtes spécifiques pour ses créneaux privés
             if (currentUser) {
-                // Requête 2: Créneaux privés où il est le propriétaire
-                let ownerQuery = db.collection('slots').where('private', '==', true).where('owner', '==', currentUser.uid);
-                promises.push(ownerQuery.get());
-
-                // Requête 3: Créneaux privés où il est participant
-                let participantQuery = db.collection('slots').where('private', '==', true).where('participants_uid', 'array-contains', currentUser.uid);
-                promises.push(participantQuery.get());
+                // Si l'utilisateur est connecté, on cherche les créneaux
+                // où (il est propriétaire) OU (il est participant) OU (le créneau est public)
+                query = collectionRef.where(
+                    or(
+                        where('owner', '==', currentUser.uid),
+                        where('participants_uid', 'array-contains', currentUser.uid),
+                        where('private', '!=', true)
+                    )
+                );
+            } else {
+                // Si l'utilisateur n'est pas connecté, on ne cherche que les créneaux publics
+                query = collectionRef.where('private', '!=', true);
             }
 
-            const snapshots = await Promise.all(promises);
-
+            const snapshot = await query.get();
             const slotsMap = new Map();
-            snapshots.forEach(snapshot => {
-                snapshot.forEach(doc => {
-                    if (!slotsMap.has(doc.id)) {
-                        slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
-                    }
-                });
+            snapshot.forEach(doc => {
+                slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
             });
 
             let allSlots = Array.from(slotsMap.values());
             
-            // Les filtres suivants sont appliqués côté client
+            // Les filtres suivants sont appliqués côté client car ils ne peuvent pas être combinés
+            // facilement avec une requête "OR" complexe.
             allSlots = allSlots.filter(slot => {
                 if (!slot) return false;
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
@@ -670,7 +671,7 @@ function showMain(){
 
         } catch (error) {
             console.error("Erreur lors du chargement des créneaux:", error);
-            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier les règles de sécurité Firebase.</li>`;
+            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier vos règles de sécurité Firestore.</li>`;
         }
     }
 
@@ -1308,16 +1309,11 @@ function handleMessagingPage() {
     loadConversations();
 }
 
-// =======================================================================
-// == CORRECTION DÉFINITIVE DE LA CRÉATION DE CONVERSATION ==
-// =======================================================================
 async function startChat(otherUserId, otherUserPseudo) {
     if (!currentUser || currentUser.uid === otherUserId) return;
     const chatId = [currentUser.uid, otherUserId].sort().join('_');
     const chatRef = db.collection('chats').doc(chatId);
     
-    // On utilise la même stratégie "upsert" que pour les groupes
-    // pour éviter le paradoxe "lire-avant-d'écrire".
     const chatData = {
         isGroupChat: false,
         members_uid: [currentUser.uid, otherUserId],
