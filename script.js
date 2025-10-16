@@ -63,8 +63,8 @@ let currentUser = null;
 
 function isDateInPast(dateString) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Met l'heure à minuit pour ne comparer que les jours
-    const slotDate = new Date(dateString + 'T00:00:00'); // Assure une interprétation correcte de la date
+    today.setHours(0, 0, 0, 0);
+    const slotDate = new Date(dateString + 'T00:00:00');
     return slotDate < today;
 }
 
@@ -127,10 +127,6 @@ function createSlotObjectFromDoc(doc) {
 
 
 function renderSlotItem(slot, targetListElement, isArchived = false) {
-    // --- POINT DE CONTRÔLE N°1 ---
-    // Vérifions ici que l'objet 'slot' reçu contient bien un 'id'.
-    console.log("renderSlotItem est appelé pour le créneau :", slot);
-
     if (!slot) return;
     const li = document.createElement('li'); li.className='slot-item';
     const info = document.createElement('div'); info.className='slot-info';
@@ -314,11 +310,9 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         chatBtn.title = 'Conversation de groupe';
         chatBtn.className = 'action-btn ghost-action-btn';
         
-        // --- POINT DE CONTRÔLE N°2 ---
-        // Vérifions l'ID du créneau juste avant d'assigner le clic.
-        console.log(`Bouton Chat créé pour le créneau ID: ${slot.id}`);
+        // MODIFIÉ ICI : On passe seulement l'ID du créneau, c'est plus sûr.
+        chatBtn.addEventListener('click', () => startGroupChat(slot.id));
         
-        chatBtn.addEventListener('click', () => startGroupChat(slot));
         actions.appendChild(chatBtn);
     }
     
@@ -364,8 +358,6 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
 }
 
 
-// ... (Le reste du fichier reste identique jusqu'à la fonction startGroupChat)
-// ... (Copiez-collez le reste de votre fichier existant ici, de handleIndexPageListeners jusqu'à la fin, puis remplacez la fonction startGroupChat par celle ci-dessous)
 // =======================================================================
 // FONCTIONS PRINCIPALES PAR PAGE
 // =======================================================================
@@ -384,10 +376,8 @@ function handleIndexPageListeners() {
                 signupBtn.disabled = true;
                 return;
             }
-            console.log(`DEBUG: Vérification du pseudo '${pseudo}' dans Firestore...`);
             try {
                 const querySnapshot = await db.collection('users').where('pseudo', '==', pseudo).get();
-                console.log("DEBUG: Requête de vérification du pseudo réussie.");
                 if (!querySnapshot.empty) {
                     pseudoStatus.textContent = 'Ce pseudo est déjà pris 😞';
                     pseudoStatus.style.color = '#e67c73';
@@ -403,36 +393,20 @@ function handleIndexPageListeners() {
         });
     }
     if (signupBtn) signupBtn.addEventListener('click', () => {
-        console.log("DEBUG: 1. Clic sur le bouton d'inscription détecté.");
         const pseudo = document.getElementById('pseudo').value.trim();
         const email = document.getElementById('email-signup').value.trim();
         const password = document.getElementById('password-signup').value.trim();
         const passwordConfirm = document.getElementById('password-confirm-signup').value.trim();
         
-        if (password !== passwordConfirm) {
-            console.error("DEBUG: Erreur de validation - Les mots de passe ne correspondent pas.");
-            return alert('Les mots de passe ne correspondent pas.');
-        }
-        if (!pseudo || !email || !password) {
-            console.error("DEBUG: Erreur de validation - Champs manquants.");
-            return alert('Remplis tous les champs.');
-        }
-        if (signupBtn.disabled) {
-            console.error("DEBUG: Erreur de validation - Pseudo non disponible.");
-            return alert('Le pseudo n\'est pas disponible.');
-        }
+        if (password !== passwordConfirm) return alert('Les mots de passe ne correspondent pas.');
+        if (!pseudo || !email || !password) return alert('Remplis tous les champs.');
+        if (signupBtn.disabled) return alert('Le pseudo n\'est pas disponible.');
 
-        console.log("DEBUG: 2. Validation côté client réussie. Tentative de création de l'utilisateur dans Firebase Auth...");
         auth.createUserWithEmailAndPassword(email, password)
             .then((userCredential) => {
-                console.log("DEBUG: 3. Utilisateur créé avec succès dans Firebase Auth. UID:", userCredential.user.uid);
-                console.log("DEBUG: 4. Tentative d'écriture du profil dans Firestore...");
                 return db.collection('users').doc(userCredential.user.uid).set({
                     pseudo: pseudo, email: email, phone: ''
                 });
-            })
-            .then(() => {
-                console.log("DEBUG: 5. Profil écrit avec succès dans Firestore ! L'inscription est terminée.");
             })
             .catch((error) => {
                 console.error("ERREUR GLOBALE LORS DE L'INSCRIPTION:", error);
@@ -607,7 +581,7 @@ function showMain(){
 
     async function populateCityFilter() {
         if (!cityFilterSelect) return;
-        const snapshot = await db.collection('slots').where('private', '==', false).get();
+        const snapshot = await db.collection('slots').get();
         const cities = new Set();
         snapshot.forEach(doc => { 
             if(doc.data().location) {
@@ -632,55 +606,54 @@ function showMain(){
         if (!list || !archivedList) return;
         list.innerHTML = '';
         archivedList.innerHTML = '';
-    
-        let publicQuery = db.collection('slots').where('private', '==', false);
-        if (currentFilterActivity !== "Toutes") { publicQuery = publicQuery.where('activity', '==', currentFilterActivity); }
-        if (currentFilterSub !== "Toutes") { publicQuery = publicQuery.where('sub', '==', currentFilterSub); }
-        if (currentFilterGroup !== "Toutes") { publicQuery = publicQuery.where('groupId', '==', currentFilterGroup); }
         
-        const publicPromise = publicQuery.get();
-        const promises = [publicPromise];
-    
-        if (currentUser) {
-            let privateQuery = db.collection('slots')
-                .where('private', '==', true)
-                .where('owner', '==', currentUser.uid);
-            if (currentFilterActivity !== "Toutes") { privateQuery = privateQuery.where('activity', '==', currentFilterActivity); }
-            if (currentFilterSub !== "Toutes") { privateQuery = privateQuery.where('sub', '==', currentFilterSub); }
-            if (currentFilterGroup !== "Toutes") { privateQuery = privateQuery.where('groupId', '==', currentFilterGroup); }
-            promises.push(privateQuery.get());
-        }
-    
-        const snapshots = await Promise.all(promises);
-        const slotsMap = new Map();
-        snapshots.forEach(snapshot => {
-            snapshot.forEach(doc => {
-                slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
+        // On construit une requête de base
+        let query = db.collection('slots');
+
+        // On applique les filtres
+        if (currentFilterActivity !== "Toutes") { query = query.where('activity', '==', currentFilterActivity); }
+        if (currentFilterSub !== "Toutes") { query = query.where('sub', '==', currentFilterSub); }
+        if (currentFilterGroup !== "Toutes") { query = query.where('groupId', '==', currentFilterGroup); }
+        
+        try {
+            const snapshot = await query.get();
+            let allSlots = snapshot.docs.map(createSlotObjectFromDoc);
+            
+            // Filtrage Côté Client pour la visibilité (privé/public) et la ville
+            allSlots = allSlots.filter(slot => {
+                if (!slot) return false;
+
+                const isVisible = !slot.private || (currentUser && (slot.participants_uid.includes(currentUser.uid) || slot.owner === currentUser.uid));
+                if (!isVisible) return false;
+
+                if (currentFilterCity !== "Toutes" && extractCity(slot.location) !== currentFilterCity) {
+                    return false;
+                }
+                
+                return true;
             });
-        });
-    
-        let allSlots = Array.from(slotsMap.values());
-    
-        if (currentFilterCity !== "Toutes") {
-            allSlots = allSlots.filter(s => s && extractCity(s.location) === currentFilterCity);
-        }
-    
-        const currentSlots = allSlots.filter(s => s && !isDateInPast(s.date));
-        const archivedSlots = allSlots.filter(s => s && isDateInPast(s.date));
-    
-        currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
-        archivedSlots.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
-    
-        if (currentSlots.length === 0) {
-            list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau ne correspond à vos filtres.</li>';
-        } else {
-            currentSlots.slice(0, 10).forEach(slot => renderSlotItem(slot, list, false));
-        }
-    
-        if (archivedSlots.length === 0) {
-            archivedList.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau archivé.</li>';
-        } else {
-            archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true));
+        
+            const currentSlots = allSlots.filter(s => s && !isDateInPast(s.date));
+            const archivedSlots = allSlots.filter(s => s && isDateInPast(s.date));
+        
+            currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+            archivedSlots.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
+        
+            if (currentSlots.length === 0) {
+                list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau ne correspond à vos filtres.</li>';
+            } else {
+                currentSlots.forEach(slot => renderSlotItem(slot, list, false));
+            }
+        
+            if (archivedSlots.length === 0) {
+                archivedList.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau archivé.</li>';
+            } else {
+                archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true));
+            }
+
+        } catch (error) {
+            console.error("Erreur lors du chargement des créneaux:", error);
+            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier les règles de sécurité Firestore.</li>`;
         }
     }
 
@@ -755,7 +728,6 @@ function showMain(){
             invited_pseudos: []
         };
         db.collection('slots').add(newSlot).then(() => {
-            console.log("Créneau créé !");
             createForm.reset();
             formGroupInput.value = '';
             createForm.style.display = 'none';
@@ -1319,41 +1291,57 @@ async function startChat(otherUserId, otherUserPseudo) {
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
-async function startGroupChat(slot) {
-    // --- POINT DE CONTRÔLE N°3 ---
-    // C'est le premier point d'entrée quand on clique. Vérifions ce que la fonction reçoit.
-    console.log("startGroupChat a été appelée avec le créneau :", slot);
-
-    if (!currentUser || !slot.participants_uid.includes(currentUser.uid)) {
-        return alert("Vous devez être participant pour accéder à la conversation de groupe.");
+// MODIFIÉ ICI : La fonction est plus robuste.
+async function startGroupChat(slotId) {
+    if (!slotId) {
+        console.error("ERREUR : startGroupChat appelée sans ID de créneau.");
+        return alert("Une erreur est survenue (ID de créneau manquant).");
+    }
+    if (!currentUser) {
+        return alert("Veuillez vous connecter pour accéder à la conversation.");
     }
 
-    if (!slot.id) {
-        console.error("ERREUR CRITIQUE : Tentative de démarrer un chat de groupe mais l'ID du créneau est manquant !", slot);
-        return alert("Une erreur est survenue, impossible de trouver la conversation (ID du créneau manquant).");
-    }
+    try {
+        // 1. Récupérer les données fraîches du créneau directement depuis Firestore
+        const slotRef = db.collection('slots').doc(slotId);
+        const slotDoc = await slotRef.get();
 
-    const chatId = `group_${slot.id}`;
-    const chatRef = db.collection('chats').doc(chatId);
-    const chatDoc = await chatRef.get();
+        if (!slotDoc.exists) {
+            console.error(`Créneau avec l'ID ${slotId} non trouvé.`);
+            return alert("Le créneau correspondant n'a pas été trouvé.");
+        }
+        const slot = createSlotObjectFromDoc(slotDoc);
 
-    if (!chatDoc.exists) {
-        console.log(`La conversation de groupe pour le créneau ${slot.id} n'existe pas. Création...`);
-        await chatRef.set({
-            isGroupChat: true,
-            groupName: slot.name,
-            members_uid: slot.participants_uid,
-            participants: slot.participants,
-            lastMessageText: "Conversation de groupe créée.",
-            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            createdBy: currentUser.uid,
-            slotId: slot.id
-        });
-    } else {
-        console.log(`La conversation de groupe pour le créneau ${slot.id} existe déjà. Redirection...`);
+        // 2. Vérifier que l'utilisateur est bien un participant
+        if (!slot.participants_uid || !slot.participants_uid.includes(currentUser.uid)) {
+            return alert("Vous devez être participant pour accéder à cette conversation.");
+        }
+
+        // 3. Créer ou rejoindre la conversation
+        const chatId = `group_${slot.id}`;
+        const chatRef = db.collection('chats').doc(chatId);
+        const chatDoc = await chatRef.get();
+
+        if (!chatDoc.exists) {
+            await chatRef.set({
+                isGroupChat: true,
+                groupName: slot.name,
+                members_uid: slot.participants_uid,
+                participants: slot.participants,
+                lastMessageText: "Conversation de groupe créée.",
+                lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                createdBy: currentUser.uid,
+                slotId: slot.id
+            });
+        }
+        
+        // 4. Rediriger vers la page de messagerie
+        window.location.href = `messagerie.html?chatId=${chatId}`;
+
+    } catch (error) {
+        console.error("Erreur lors du démarrage de la conversation de groupe :", error);
+        alert("Une erreur technique est survenue en essayant d'accéder à la conversation.");
     }
-    
-    window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
 
