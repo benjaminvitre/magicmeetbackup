@@ -4,7 +4,6 @@ const ADMIN_EMAIL = "benjamin.vitre@gmail.com";
 // Triez les sous-activités
 const sortArray = (arr) => arr.sort((a, b) => a.localeCompare(b, 'fr'));
 
-// MODIFICATION : Ajout des nouvelles sous-activités
 const ACTIVITIES = {
   "Toutes": [],
   "Autres": [],
@@ -19,8 +18,6 @@ const coreActivityKeys = Object.keys(ACTIVITIES)
     .sort((a, b) => a.localeCompare(b, 'fr'));
 const orderedActivityKeys = ["Toutes", ...coreActivityKeys, "Autres"];
 
-
-// Ajout des emojis
 const ACTIVITY_EMOJIS = {
     "Toutes": "🌍",
     "Autres": "❓",
@@ -252,7 +249,6 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
                             participants: firebase.firestore.FieldValue.arrayUnion({uid: currentUser.uid, pseudo: currentUser.pseudo}),
                             participants_uid: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
                         }).then(() => {
-                            // --- CORRECTION CI-DESSOUS ---
                             alert('Créneau rejoint 👍');
                             reloadLists();
                         }).catch(error => {
@@ -333,7 +329,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         inviteForm.className = 'invite-form';
         inviteForm.innerHTML = `
             <input type="text" id="invite-input-${slot.id}" placeholder="Inviter par pseudo">
-            <button id="invite-btn-${slot.id}" class.action-btn">Inviter</button>
+            <button id="invite-btn-${slot.id}" class="action-btn">Inviter</button>
         `;
         li.appendChild(inviteForm);
 
@@ -358,9 +354,6 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
     targetListElement.appendChild(li);
 }
 
-
-// ... (Le reste du fichier est identique, vous n'avez pas besoin de le modifier)
-// ... (Le code suivant est fourni pour que le fichier soit complet)
 
 // =======================================================================
 // FONCTIONS PRINCIPALES PAR PAGE
@@ -1306,6 +1299,9 @@ async function startChat(otherUserId, otherUserPseudo) {
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
 
+// =======================================================================
+// == CORRECTION DÉFINITIVE DE LA FONCTION DE CHAT DE GROUPE ==
+// =======================================================================
 async function startGroupChat(slotId) {
     if (!slotId) {
         console.error("ERREUR : startGroupChat appelée sans ID de créneau.");
@@ -1320,13 +1316,11 @@ async function startGroupChat(slotId) {
         const slotDoc = await slotRef.get();
 
         if (!slotDoc.exists) {
-            console.error(`Créneau avec l'ID ${slotId} non trouvé.`);
             return alert("Le créneau correspondant n'a pas été trouvé.");
         }
         const slot = createSlotObjectFromDoc(slotDoc);
 
         if (!slot.participants_uid || !slot.participants || !slot.name) {
-             console.error("Données manquantes sur le créneau pour créer la conversation :", slot);
              return alert("Impossible de créer la conversation, les informations du créneau sont incomplètes.");
         }
 
@@ -1336,18 +1330,27 @@ async function startGroupChat(slotId) {
 
         const chatId = `group_${slot.id}`;
         const chatRef = db.collection('chats').doc(chatId);
-        const chatDoc = await chatRef.get();
 
-        if (!chatDoc.exists) {
-            await chatRef.set({
-                isGroupChat: true,
-                groupName: slot.name,
-                members_uid: slot.participants_uid,
-                participants: slot.participants,
-                lastMessageText: "Conversation de groupe créée.",
-                lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                createdBy: currentUser.uid,
-                slotId: slot.id
+        // NOUVELLE LOGIQUE : On utilise .set() avec merge:true. C'est un "upsert".
+        // On ne lit plus avant d'écrire, on écrit directement.
+        // Cela déclenchera soit la règle "create" (si le doc n'existe pas), 
+        // soit la règle "update" (s'il existe), qui sont toutes deux autorisées.
+        const chatData = {
+            isGroupChat: true,
+            groupName: slot.name,
+            members_uid: slot.participants_uid,
+            participants: slot.participants,
+            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            slotId: slot.id
+        };
+        
+        await chatRef.set(chatData, { merge: true });
+        
+        // On vérifie si un premier message existe déjà, sinon on l'ajoute.
+        const chatDocAfterSet = await chatRef.get();
+        if (!chatDocAfterSet.data().lastMessageText) {
+            await chatRef.update({
+                lastMessageText: "Conversation de groupe créée."
             });
         }
         
