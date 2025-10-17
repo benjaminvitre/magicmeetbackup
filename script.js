@@ -611,38 +611,25 @@ function showMain(){
         archivedList.innerHTML = '';
 
         try {
-            const promises = [];
-            // Requête 1: Créneaux publics (respecte les règles de sécurité)
-            let publicQuery = db.collection('slots').where('private', '!=', true);
-            promises.push(publicQuery.get());
-
-            // Si l'utilisateur est connecté, on ajoute les requêtes spécifiques pour ses créneaux privés
-            if (currentUser) {
-                // Requête 2: Créneaux privés où il est le propriétaire
-                let ownerQuery = db.collection('slots').where('private', '==', true).where('owner', '==', currentUser.uid);
-                promises.push(ownerQuery.get());
-
-                // Requête 3: Créneaux privés où il est participant
-                let participantQuery = db.collection('slots').where('private', '==', true).where('participants_uid', 'array-contains', currentUser.uid);
-                promises.push(participantQuery.get());
-            }
-
-            const snapshots = await Promise.all(snapshots);
-            const slotsMap = new Map();
-            snapshots.forEach(snapshot => {
-                snapshot.forEach(doc => {
-                    if (!slotsMap.has(doc.id)) {
-                        slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
-                    }
-                });
-            });
-
-            let allSlots = Array.from(slotsMap.values());
+            const snapshot = await db.collection('slots').get();
+            let allSlots = snapshot.docs.map(doc => createSlotObjectFromDoc(doc));
             
-            // Les filtres suivants sont appliqués côté client car ils ne peuvent pas être combinés
-            // facilement avec une requête "OR" complexe.
+            // FILTRAGE CÔTÉ CLIENT POUR LA VISIBILITÉ (RESPECT DES RÈGLES)
             allSlots = allSlots.filter(slot => {
                 if (!slot) return false;
+                // Un créneau est visible si:
+                // 1. Il n'est pas privé
+                const isPublic = slot.private !== true;
+                // 2. OU l'utilisateur est connecté ET est le propriétaire
+                const isOwner = currentUser && slot.owner === currentUser.uid;
+                // 3. OU l'utilisateur est connecté ET fait partie des participants
+                const isParticipant = currentUser && (slot.participants_uid || []).includes(currentUser.uid);
+
+                return isPublic || isOwner || isParticipant;
+            });
+
+            // FILTRAGE CÔTÉ CLIENT POUR L'INTERFACE UTILISATEUR
+            allSlots = allSlots.filter(slot => {
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
                 if (currentFilterSub !== "Toutes" && slot.sub !== currentFilterSub) return false;
                 if (currentFilterGroup !== "Toutes" && slot.groupId !== currentFilterGroup) return false;
