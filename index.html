@@ -207,19 +207,19 @@
 
 
     <script>
-      const firebaseConfig = {
-  apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
-  authDomain: "magicmeet-947cf.firebaseapp.com",
-  projectId: "magicmeet-947cf",
-  storageBucket: "magicmeet-947cf.appspot.com",
-  messagingSenderId: "400119032453",
-  appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
-      };
+  const firebaseConfig = {
+    apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
+    authDomain: "magicmeet-947cf.firebaseapp.com",
+    projectId: "magicmeet-947cf",
+    storageBucket: "magicmeet-947cf.firebasestorage.app",
+    messagingSenderId: "400119032453",
+    appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+</script>
 
-      firebase.initializeApp(firebaseConfig);
-      const auth = firebase.auth();
-      const db = firebase.firestore();
-    </script>
 
     <script src="script.js"></script>
 </body>
