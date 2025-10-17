@@ -887,3 +887,25 @@ input:focus, select:focus {
 .chat-member-link:hover {
     color: var(--text-accent);
 }
+/* ====================================
+11. NOUVEAUX STYLES PROFIL
+====================================
+*/
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px; /* Espace sous l'en-tête de la carte */
+}
+
+.card-header h2 {
+    margin: 0; /* Retire la marge par défaut du h2 */
+}
+
+/* Style spécifique pour le bouton de déconnexion dans la carte */
+.card #logout-profile {
+    width: auto; /* Permet au bouton de s'adapter à son contenu */
+    padding: 8px 16px;
+    font-size: 0.9em;
+}
