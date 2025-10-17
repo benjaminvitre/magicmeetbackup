@@ -21,12 +21,12 @@ Object.assign(ACTIVITIES, tempActivities);
 
 // Ajout des emojis
 const ACTIVITY_EMOJIS = {
-    "Toutes": "🌍",
-    "Autres": "❓",
-    "Culture": "🖼️",
-    "Jeux": "🎮",
-    "Sorties": "🎉",
-    "Sport": "⚽"
+  "Toutes": "🌍",
+  "Autres": "❓",
+  "Culture": "🖼️",
+  "Jeux": "🎮",
+  "Sorties": "🎉",
+  "Sport": "⚽"
 };
 
 const SUBSUB = {
@@ -56,7 +56,7 @@ var currentUser = null;
 // FONCTIONS UTILITAIRES GLOBALES
 // =======================================================================
 
-function formatDateToWords(dateString){
+function formatDateToWords(dateString) {
   const date = new Date(dateString + 'T00:00:00');
   if (isNaN(date)) return dateString;
   const options = { day: 'numeric', month: 'long' };
@@ -64,78 +64,83 @@ function formatDateToWords(dateString){
 }
 
 function extractCity(locationText) {
-    if (!locationText) return '';
-    const parts = locationText.split(',').map(p => p.trim());
-    if (parts.length > 1) {
-        const lastPart = parts[parts.length - 1];
-        if (lastPart.match(/\d{5}\s/)) { return lastPart.replace(/\d{5}\s*/, '').trim(); }
-        return lastPart.replace(/\d{5}/, '').trim();
-    }
-    const words = locationText.split(' ');
-    const lastWord = words[words.length -1];
-    if (lastWord && lastWord.length > 2 && lastWord[0] === lastWord[0].toUpperCase()) { return lastWord; }
-    return locationText;
+  if (!locationText) return '';
+  const parts = locationText.split(',').map(p => p.trim());
+  if (parts.length > 1) {
+    const lastPart = parts[parts.length - 1];
+    if (lastPart.match(/\d{5}\s/)) { return lastPart.replace(/\d{5}\s*/, '').trim(); }
+    return lastPart.replace(/\d{5}/, '').trim();
+  }
+  const words = locationText.split(' ');
+  const lastWord = words[words.length - 1];
+  if (lastWord && lastWord.length > 2 && lastWord[0] === lastWord[0].toUpperCase()) { return lastWord; }
+  return locationText;
 }
 
 function updateHeaderDisplay() {
-    const profileLink = document.getElementById('profile-link');
-    const messagerieLink = document.getElementById('messagerie-link');
-    if (currentUser) {
-        if (profileLink) profileLink.style.display = 'inline-block';
-        if (messagerieLink) messagerieLink.style.display = 'inline-block';
-    } else {
-        if (profileLink) profileLink.style.display = 'none';
-        if (messagerieLink) messagerieLink.style.display = 'none';
-    }
+  const profileLink = document.getElementById('profile-link');
+  const messagerieLink = document.getElementById('messagerie-link');
+  if (currentUser) {
+    if (profileLink) profileLink.style.display = 'inline-block';
+    if (messagerieLink) messagerieLink.style.display = 'inline-block';
+  } else {
+    if (profileLink) profileLink.style.display = 'none';
+    if (messagerieLink) messagerieLink.style.display = 'none';
+  }
 }
 
 function fillProfileFields(user) {
-    if (!user) return;
-    const profilePseudo = document.getElementById('profile-pseudo');
-    const profileEmail = document.getElementById('profile-email');
-    const profilePhone = document.getElementById('profile-phone');
-    if (profilePseudo) profilePseudo.value = user.pseudo || '';
-    if (profileEmail) profileEmail.value = user.email || '';
-    if (profilePhone) profilePhone.value = user.phone || '';
+  if (!user) return;
+  const profilePseudo = document.getElementById('profile-pseudo');
+  const profileEmail = document.getElementById('profile-email');
+  const profilePhone = document.getElementById('profile-phone');
+  if (profilePseudo) profilePseudo.value = user.pseudo || '';
+  if (profileEmail) profileEmail.value = user.email || '';
+  if (profilePhone) profilePhone.value = user.phone || '';
 }
 
 function logout() {
-    auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
+  auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
 }
 
-/* === (tout le reste de ton code inchangé ici, jusqu’à la fin de handleIndexPageListeners et showMain etc.) === */
+/* === ici, tout le reste de ton code d'origine (handleIndexPageListeners, showMain, etc.) reste inchangé === */
 
 /* ---------------------------------------------------------------------- */
-/* FIN DU FICHIER — AJOUT DE L’ÉCOUTEUR D’AUTHENTIFICATION FIREBASE */
+/* FIN DU FICHIER — ÉCOUTEUR D’AUTHENTIFICATION FIREBASE (version corrigée) */
 /* ---------------------------------------------------------------------- */
 
-auth.onAuthStateChanged(async (user) => {
-  if (user) {
-    currentUser = user;
-    try {
-      const userDoc = await db.collection('users').doc(user.uid).get();
-      if (userDoc.exists) {
-        currentUser.pseudo = userDoc.data().pseudo;
-      }
-    } catch (e) {
-      console.error("Erreur de chargement du profil :", e);
-    }
+document.addEventListener("DOMContentLoaded", () => {
+  if (typeof auth === "undefined") return; // sécurité
 
-    updateHeaderDisplay();
+  auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      currentUser = user;
+      try {
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        if (userDoc.exists) {
+          currentUser.pseudo = userDoc.data().pseudo;
+        }
+      } catch (e) {
+        console.error("Erreur de chargement du profil :", e);
+      }
 
-    // Si on est sur la page d’accueil, on relance le chargement des créneaux
-    if (document.getElementById('main-section')) {
-      showMain();
-      if (typeof loadSlots === 'function') {
-        loadSlots('slots-list', 'slots-list');
-        loadSlots('past-slots-list', 'past-slots-list');
+      updateHeaderDisplay();
+
+      // ✅ Seulement sur la page d'accueil (index.html)
+      if (document.getElementById('main-section') && typeof showMain === "function") {
+        showMain();
+        if (typeof loadSlots === 'function') {
+          loadSlots('slots-list', 'slots-list');
+          loadSlots('past-slots-list', 'past-slots-list');
+        }
+      }
+    } else {
+      // Si pas connecté, on affiche la section de connexion (seulement sur index.html)
+      if (document.getElementById('auth-section')) {
+        document.getElementById('auth-section').style.display = 'block';
+        const mainSection = document.getElementById('main-section');
+        if (mainSection) mainSection.style.display = 'none';
       }
     }
-  } else {
-    // Si pas connecté, on affiche la section connexion
-    if (document.getElementById('auth-section')) {
-      document.getElementById('auth-section').style.display = 'block';
-      document.getElementById('main-section').style.display = 'none';
-    }
-  }
+  });
 });
