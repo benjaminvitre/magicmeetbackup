@@ -4,7 +4,6 @@ const ADMIN_EMAIL = "benjamin.vitre@gmail.com";
 // Triez les sous-activités
 const sortArray = (arr) => arr.sort((a, b) => a.localeCompare(b, 'fr'));
 
-// MODIFICATION : Ajout des nouvelles sous-activités
 const ACTIVITIES = {
   "Toutes": [],
   "Autres": [],
@@ -19,8 +18,6 @@ const coreActivityKeys = Object.keys(ACTIVITIES)
     .sort((a, b) => a.localeCompare(b, 'fr'));
 const orderedActivityKeys = ["Toutes", ...coreActivityKeys, "Autres"];
 
-
-// Ajout des emojis
 const ACTIVITY_EMOJIS = {
     "Toutes": "🌍",
     "Autres": "❓",
@@ -63,8 +60,8 @@ let currentUser = null;
 
 function isDateInPast(dateString) {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Met l'heure à minuit pour ne comparer que les jours
-    const slotDate = new Date(dateString + 'T00:00:00'); // Assure une interprétation correcte de la date
+    today.setHours(0, 0, 0, 0);
+    const slotDate = new Date(dateString + 'T00:00:00');
     return slotDate < today;
 }
 
@@ -78,26 +75,15 @@ function formatDateToWords(dateString){
 function extractCity(locationText) {
     if (!locationText) return '';
     const parts = locationText.split(',').map(p => p.trim());
-
-    // Si une virgule est présente, on suppose que la ville est dans la dernière partie.
     if (parts.length > 1) {
         const lastPart = parts[parts.length - 1];
-        // On retire les chiffres (code postal) et on nettoie.
         return lastPart.replace(/[0-9]/g, '').trim();
     }
-
-    // S'il n'y a pas de virgule, c'est plus ambigu (ça peut être une ville ou une adresse).
-    // On évite de retourner une adresse en cherchant des mots-clés typiques des rues.
     const streetIndicators = ['rue', 'avenue', 'boulevard', 'impasse', 'place', 'allée', 'chemin'];
     const lowerCaseText = locationText.toLowerCase();
-    
     if (streetIndicators.some(indicator => lowerCaseText.includes(indicator))) {
-        // C'est probablement une adresse, on ne peut pas extraire la ville de manière fiable.
-        // On retourne une chaîne vide pour ne pas polluer le filtre des villes.
         return '';
     }
-
-    // Si aucun indicateur de rue n'est trouvé, on suppose que c'est une ville.
     return locationText.replace(/[0-9]/g, '').trim();
 }
 
@@ -131,7 +117,14 @@ function logout() {
     auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
 }
 
+function createSlotObjectFromDoc(doc) {
+    if (!doc || !doc.exists) return null;
+    return { id: doc.id, ...doc.data() };
+}
+
+
 function renderSlotItem(slot, targetListElement, isArchived = false) {
+    if (!slot) return;
     const li = document.createElement('li'); li.className='slot-item';
     const info = document.createElement('div'); info.className='slot-info';
     const activityLine = document.createElement('div'); activityLine.className = 'subsub-line';
@@ -213,7 +206,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         participantsList.textContent = 'Participants cachés.';
     } else {
         participantsList.innerHTML = 'Membres: ';
-        slot.participants.forEach((p, index) => {
+        (slot.participants || []).forEach((p, index) => {
             const pseudoSpan = document.createElement('span');
             if (currentUser && p.uid !== currentUser.uid) {
                 pseudoSpan.className = 'clickable-pseudo';
@@ -221,7 +214,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
             }
             pseudoSpan.textContent = p.pseudo;
             participantsList.appendChild(pseudoSpan);
-            if (index < slot.participants.length - 1) {
+            if (index < (slot.participants || []).length - 1) {
                 participantsList.append(', ');
             }
         });
@@ -243,7 +236,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
         if (typeof loadJoinedSlots === 'function' && document.getElementById('joined-slots')) loadJoinedSlots();
         if (typeof loadArchivedSlots === 'function' && document.getElementById('archived-slots')) loadArchivedSlots();
     };
-    if (currentUser && !isArchived) { // On n'affiche les boutons d'action que si le créneau n'est pas archivé
+    if (currentUser && !isArchived) {
         if (targetListElement.id === 'slots-list' || targetListElement.id === 'user-slots') {
             if (!isParticipant){
                 const joinBtn = document.createElement('button');
@@ -256,8 +249,11 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
                             participants: firebase.firestore.FieldValue.arrayUnion({uid: currentUser.uid, pseudo: currentUser.pseudo}),
                             participants_uid: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
                         }).then(() => {
-                            alert('Créneau rejoint !');
+                            alert('Créneau rejoint 👍');
                             reloadLists();
+                        }).catch(error => {
+                            console.error("Erreur pour rejoindre le créneau:", error);
+                            alert("Une erreur est survenue. Veuillez vérifier les règles de sécurité Firebase.");
                         });
                     };
                     actions.appendChild(joinBtn);
@@ -307,12 +303,23 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
             actions.appendChild(del);
         }
     }
+    
+    if (currentUser && isParticipant && !isArchived) {
+        const chatBtn = document.createElement('button');
+        chatBtn.textContent = '💬';
+        chatBtn.title = 'Conversation de groupe';
+        chatBtn.className = 'action-btn ghost-action-btn';
+        chatBtn.addEventListener('click', () => startGroupChat(slot.id));
+        actions.appendChild(chatBtn);
+    }
+    
     const share = document.createElement('button'); share.textContent='🔗'; share.title='Partager';
     share.className = 'action-btn ghost-action-btn';
     share.onclick = ()=> {
         const link = `${window.location.origin}${window.location.pathname}?slot=${slot.id}`;
         navigator.clipboard.writeText(link).then(()=>alert('Lien copié !'));
     };
+
     actions.appendChild(share);
     li.appendChild(info);
     li.appendChild(actions);
@@ -353,7 +360,6 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
 // =======================================================================
 
 function handleIndexPageListeners() {
-    console.log("DEBUG: Initialisation des listeners de la page d'accueil...");
     const signupBtn = document.getElementById('signup');
     const loginBtn = document.getElementById('login');
     const pseudoInput = document.getElementById('pseudo');
@@ -366,10 +372,8 @@ function handleIndexPageListeners() {
                 signupBtn.disabled = true;
                 return;
             }
-            console.log(`DEBUG: Vérification du pseudo '${pseudo}' dans Firestore...`);
             try {
                 const querySnapshot = await db.collection('users').where('pseudo', '==', pseudo).get();
-                console.log("DEBUG: Requête de vérification du pseudo réussie.");
                 if (!querySnapshot.empty) {
                     pseudoStatus.textContent = 'Ce pseudo est déjà pris 😞';
                     pseudoStatus.style.color = '#e67c73';
@@ -385,36 +389,20 @@ function handleIndexPageListeners() {
         });
     }
     if (signupBtn) signupBtn.addEventListener('click', () => {
-        console.log("DEBUG: 1. Clic sur le bouton d'inscription détecté.");
         const pseudo = document.getElementById('pseudo').value.trim();
         const email = document.getElementById('email-signup').value.trim();
         const password = document.getElementById('password-signup').value.trim();
         const passwordConfirm = document.getElementById('password-confirm-signup').value.trim();
         
-        if (password !== passwordConfirm) {
-            console.error("DEBUG: Erreur de validation - Les mots de passe ne correspondent pas.");
-            return alert('Les mots de passe ne correspondent pas.');
-        }
-        if (!pseudo || !email || !password) {
-            console.error("DEBUG: Erreur de validation - Champs manquants.");
-            return alert('Remplis tous les champs.');
-        }
-        if (signupBtn.disabled) {
-            console.error("DEBUG: Erreur de validation - Pseudo non disponible.");
-            return alert('Le pseudo n\'est pas disponible.');
-        }
+        if (password !== passwordConfirm) return alert('Les mots de passe ne correspondent pas.');
+        if (!pseudo || !email || !password) return alert('Remplis tous les champs.');
+        if (signupBtn.disabled) return alert('Le pseudo n\'est pas disponible.');
 
-        console.log("DEBUG: 2. Validation côté client réussie. Tentative de création de l'utilisateur dans Firebase Auth...");
         auth.createUserWithEmailAndPassword(email, password)
             .then((userCredential) => {
-                console.log("DEBUG: 3. Utilisateur créé avec succès dans Firebase Auth. UID:", userCredential.user.uid);
-                console.log("DEBUG: 4. Tentative d'écriture du profil dans Firestore...");
                 return db.collection('users').doc(userCredential.user.uid).set({
                     pseudo: pseudo, email: email, phone: ''
                 });
-            })
-            .then(() => {
-                console.log("DEBUG: 5. Profil écrit avec succès dans Firestore ! L'inscription est terminée.");
             })
             .catch((error) => {
                 console.error("ERREUR GLOBALE LORS DE L'INSCRIPTION:", error);
@@ -589,86 +577,97 @@ function showMain(){
 
     async function populateCityFilter() {
         if (!cityFilterSelect) return;
-        const snapshot = await db.collection('slots').where('private', '==', false).get();
-        const cities = new Set();
-        snapshot.forEach(doc => { 
-            if(doc.data().location) {
-                const city = extractCity(doc.data().location);
-                if (city) { // On n'ajoute que si la ville a été extraite
-                    cities.add(city);
+        try {
+            const snapshot = await db.collection('slots').where('private', '!=', true).get();
+            const cities = new Set();
+            snapshot.forEach(doc => { 
+                if(doc.data().location) {
+                    const city = extractCity(doc.data().location);
+                    if (city) {
+                        cities.add(city);
+                    }
                 }
-            }
-        });
-        const sortedCities = Array.from(cities).sort((a, b) => a.localeCompare(b, 'fr'));
-        cityFilterSelect.innerHTML = '<option value="Toutes">Toutes</option>';
-        sortedCities.forEach(city => {
-            const o = document.createElement('option'); o.value = city; o.textContent = city; cityFilterSelect.appendChild(o);
-        });
-        cityFilterSelect.value = currentFilterCity;
-        cityFilterSelect.onchange = () => { currentFilterCity = cityFilterSelect.value; loadSlots(); };
+            });
+            const sortedCities = Array.from(cities).sort((a, b) => a.localeCompare(b, 'fr'));
+            cityFilterSelect.innerHTML = '<option value="Toutes">Toutes</option>';
+            sortedCities.forEach(city => {
+                const o = document.createElement('option'); o.value = city; o.textContent = city; cityFilterSelect.appendChild(o);
+            });
+            cityFilterSelect.value = currentFilterCity;
+            cityFilterSelect.onchange = () => { currentFilterCity = cityFilterSelect.value; loadSlots(); };
+        } catch (error) {
+            console.error("Erreur de permission sur le filtre des villes :", error);
+        }
     }
 
+    // =======================================================================
+    // == CORRECTION DÉFINITIVE DE L'AFFICHAGE DES CRÉNEAUX ==
+    // =======================================================================
     async function loadSlots() {
         const list = document.getElementById('slots-list');
         const archivedList = document.getElementById('archived-slots-list');
         if (!list || !archivedList) return;
         list.innerHTML = '';
         archivedList.innerHTML = '';
-    
-        let publicQuery = db.collection('slots').where('private', '==', false);
-        if (currentFilterActivity !== "Toutes") { publicQuery = publicQuery.where('activity', '==', currentFilterActivity); }
-        if (currentFilterSub !== "Toutes") { publicQuery = publicQuery.where('sub', '==', currentFilterSub); }
-        if (currentFilterGroup !== "Toutes") { publicQuery = publicQuery.where('groupId', '==', currentFilterGroup); }
-        
-        const publicPromise = publicQuery.get();
-        const promises = [publicPromise];
-    
-        if (currentUser) {
-            let privateQuery = db.collection('slots')
-                .where('private', '==', true)
-                .where('owner', '==', currentUser.uid);
-            if (currentFilterActivity !== "Toutes") { privateQuery = privateQuery.where('activity', '==', currentFilterActivity); }
-            if (currentFilterSub !== "Toutes") { privateQuery = privateQuery.where('sub', '==', currentFilterSub); }
-            if (currentFilterGroup !== "Toutes") { privateQuery = privateQuery.where('groupId', '==', currentFilterGroup); }
-            promises.push(privateQuery.get());
-        }
-    
-        const snapshots = await Promise.all(promises);
-        const slotsMap = new Map();
-        snapshots.forEach(snapshot => {
-            snapshot.forEach(doc => {
-                slotsMap.set(doc.id, { id: doc.id, ...doc.data() });
+
+        try {
+            const promises = [];
+            let publicQuery = db.collection('slots').where('private', '!=', true);
+            promises.push(publicQuery.get());
+
+            if (currentUser) {
+                let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
+                promises.push(ownerQuery.get());
+                let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
+                promises.push(participantQuery.get());
+            }
+
+            const snapshots = await Promise.all(promises);
+
+            const slotsMap = new Map();
+            snapshots.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    if (!slotsMap.has(doc.id)) {
+                        slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
+                    }
+                });
             });
-        });
-    
-        let allSlots = Array.from(slotsMap.values());
-    
-        // Filtrage par ville
-        if (currentFilterCity !== "Toutes") {
-            allSlots = allSlots.filter(s => extractCity(s.location) === currentFilterCity);
-        }
-    
-        const currentSlots = allSlots.filter(s => !isDateInPast(s.date));
-        const archivedSlots = allSlots.filter(s => isDateInPast(s.date));
-    
-        // Tri
-        currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
-        archivedSlots.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
-    
-        // Affichage des créneaux actuels
-        if (currentSlots.length === 0) {
-            list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau ne correspond à vos filtres.</li>';
-        } else {
-            currentSlots.slice(0, 10).forEach(slot => renderSlotItem(slot, list, false)); // isArchived = false
-        }
-    
-        // Affichage des archives
-        if (archivedSlots.length === 0) {
-            archivedList.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau archivé.</li>';
-        } else {
-            archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true)); // isArchived = true
+
+            let allSlots = Array.from(slotsMap.values());
+            
+            allSlots = allSlots.filter(slot => {
+                if (!slot) return false;
+                if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
+                if (currentFilterSub !== "Toutes" && slot.sub !== currentFilterSub) return false;
+                if (currentFilterGroup !== "Toutes" && slot.groupId !== currentFilterGroup) return false;
+                if (currentFilterCity !== "Toutes" && extractCity(slot.location) !== currentFilterCity) return false;
+                return true;
+            });
+            
+            const currentSlots = allSlots.filter(s => s && !isDateInPast(s.date));
+            const archivedSlots = allSlots.filter(s => s && isDateInPast(s.date));
+        
+            currentSlots.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+            archivedSlots.sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`));
+        
+            if (currentSlots.length === 0) {
+                list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau ne correspond à vos filtres.</li>';
+            } else {
+                currentSlots.forEach(slot => renderSlotItem(slot, list, false));
+            }
+        
+            if (archivedSlots.length === 0) {
+                archivedList.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Aucun créneau archivé.</li>';
+            } else {
+                archivedSlots.forEach(slot => renderSlotItem(slot, archivedList, true));
+            }
+
+        } catch (error) {
+            console.error("Erreur lors du chargement des créneaux:", error);
+            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Une erreur est survenue. Rechargez la page ou vérifiez la console.</li>`;
         }
     }
+
 
     renderActivities();
     loadSlots();
@@ -704,7 +703,7 @@ function showMain(){
         const time = (document.getElementById('slot-time')?.value||'').trim();
         const activity = formActivitySelect.value;
         const groupName = formGroupInput.value.trim();
-        const details = (document.getElementById('slot-details')?.value || '').trim(); // Récupération des détails
+        const details = (document.getElementById('slot-details')?.value || '').trim();
         if (!activity) return alert('Choisis d’abord une activité (ex: Jeux)');
         if (!name || !location || !date || !time) return alert('Remplis les champs nom, lieu, date et heure');
         let groupId = null;
@@ -729,7 +728,7 @@ function showMain(){
         const newSlot = {
             activity: activity, sub: formSubSelect.value || '', subsub: subsubSelect.value || '',
             name: name, location: location, date: date, time: time,
-            details: details, // Ajout des détails au nouvel objet
+            details: details,
             private: !!document.getElementById('private-slot')?.checked,
             groupId: groupId,
             groupName: groupName || null,
@@ -741,7 +740,6 @@ function showMain(){
             invited_pseudos: []
         };
         db.collection('slots').add(newSlot).then(() => {
-            console.log("Créneau créé !");
             createForm.reset();
             formGroupInput.value = '';
             createForm.style.display = 'none';
@@ -760,7 +758,7 @@ function handleProfilePage() {
     loadJoinedSlots();
     loadUserGroups();
     loadPendingInvitations();
-    loadArchivedSlots(); // Appel de la nouvelle fonction pour les archives
+    loadArchivedSlots();
     const createGroupBtn = document.getElementById('create-group-btn');
     const groupNameInput = document.getElementById('group-name-input');
     const privateGroupCheckbox = document.getElementById('private-group');
@@ -798,13 +796,15 @@ async function loadUserSlots() {
     list.innerHTML = '';
     const snapshot = await db.collection('slots').where('owner', '==', currentUser.uid).orderBy('date', 'asc').get();
     
-    const currentSlots = snapshot.docs.filter(doc => !isDateInPast(doc.data().date));
+    const currentSlots = snapshot.docs
+        .map(createSlotObjectFromDoc)
+        .filter(slot => slot && !isDateInPast(slot.date));
     
     if (currentSlots.length === 0) {
         list.innerHTML = '<li style="color:var(--muted-text); padding: 10px 0;">Vous n\'avez créé aucun créneau à venir.</li>';
         return;
     }
-    currentSlots.forEach(doc => renderSlotItem({ id: doc.id, ...doc.data() }, list, false));
+    currentSlots.forEach(slot => renderSlotItem(slot, list, false));
 }
 
 async function loadJoinedSlots() {
@@ -820,8 +820,8 @@ async function loadJoinedSlots() {
     
     let hasJoinedSlots = false;
     snapshot.forEach(doc => {
-        const slot = { id: doc.id, ...doc.data() };
-        if (slot.owner !== currentUser.uid && !isDateInPast(slot.date)) {
+        const slot = createSlotObjectFromDoc(doc);
+        if (slot && slot.owner !== currentUser.uid && !isDateInPast(slot.date)) {
             hasJoinedSlots = true;
             renderSlotItem(slot, list, false);
         }
@@ -846,8 +846,8 @@ async function loadArchivedSlots() {
 
     const processSnapshot = (snapshot) => {
         snapshot.forEach(doc => {
-            const slot = { id: doc.id, ...doc.data() };
-            if (isDateInPast(slot.date)) {
+            const slot = createSlotObjectFromDoc(doc);
+            if (slot && isDateInPast(slot.date)) {
                 archivedSlotsMap.set(doc.id, slot);
             }
         });
@@ -862,9 +862,9 @@ async function loadArchivedSlots() {
     }
 
     const sortedArchived = Array.from(archivedSlotsMap.values())
-        .sort((a, b) => new Date(b.date) - new Date(a.date)); // Tri par date, du plus récent au plus ancien
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    sortedArchived.forEach(slot => renderSlotItem(slot, list, true)); // isArchived = true
+    sortedArchived.forEach(slot => renderSlotItem(slot, list, true));
 }
 
 
@@ -933,8 +933,8 @@ async function loadPendingInvitations() {
     }
     let invitationsCount = 0;
     snapshot.forEach(doc => {
-        const slot = { id: doc.id, ...doc.data() };
-        if (!slot.participants_uid.includes(currentUser.uid)) {
+        const slot = createSlotObjectFromDoc(doc);
+        if (slot && !slot.participants_uid.includes(currentUser.uid)) {
             invitationsCount++;
             const li = document.createElement('li');
             li.className = 'invitation-item';
@@ -991,8 +991,9 @@ function checkShared(){
     closeBtn.onclick = closeModal;
     window.onclick = (event) => { if (event.target == modal) { closeModal(); } };
     db.collection('slots').doc(slotId).get().then(doc => {
-        if(!doc.exists) return;
-        const slot = { id: doc.id, ...doc.data() };
+        const slot = createSlotObjectFromDoc(doc);
+        if(!slot) return;
+        
         const isParticipant = currentUser && (slot.participants_uid || []).includes(currentUser.uid);
         const isInvited = currentUser && (slot.invited_uids || []).includes(currentUser.uid);
         if (slot.private && !isParticipant && !isInvited) return;
@@ -1027,7 +1028,7 @@ function checkShared(){
                         invited_uids: firebase.firestore.FieldValue.arrayRemove(currentUser.uid),
                         invited_pseudos: firebase.firestore.FieldValue.arrayRemove(currentUser.pseudo)
                     }).then(() => {
-                        alert('Créneau rejoint ! 🤘');
+                        alert('Créneau rejoint 👍');
                         closeModal();
                         if (document.getElementById('joined-slots')) { loadJoinedSlots(); }
                     });
@@ -1049,7 +1050,7 @@ function openEditModal(slot) {
     document.getElementById('edit-slot-id').value = slot.id;
     document.getElementById('edit-slot-name').value = slot.name;
     document.getElementById('edit-slot-location').value = slot.location;
-    document.getElementById('edit-slot-details').value = slot.details || ''; // Pré-remplir le champ détails
+    document.getElementById('edit-slot-details').value = slot.details || '';
     document.getElementById('edit-slot-date').value = slot.date;
     document.getElementById('edit-slot-time').value = slot.time;
     document.getElementById('edit-private-slot').checked = slot.private;
@@ -1087,7 +1088,7 @@ function openEditModal(slot) {
         const updatedSlot = {
             name: document.getElementById('edit-slot-name').value,
             location: document.getElementById('edit-slot-location').value,
-            details: document.getElementById('edit-slot-details').value.trim(), // Sauvegarder les détails modifiés
+            details: document.getElementById('edit-slot-details').value.trim(),
             date: document.getElementById('edit-slot-date').value,
             time: document.getElementById('edit-slot-time').value,
             private: document.getElementById('edit-private-slot').checked,
@@ -1117,29 +1118,29 @@ function handleMessagingPage() {
     }
     const messagingContainer = document.querySelector('.messaging-container');
     const backBtn = document.getElementById('back-to-conv-btn');
-    const closeChatBtn = document.getElementById('close-chat'); // Nouveau bouton
+    const closeChatBtn = document.getElementById('close-chat');
     const convList = document.getElementById('conv-list');
     const chatWithName = document.getElementById('chat-with-name');
     const messagesArea = document.getElementById('messages-area');
     const messageInput = document.getElementById('message-input');
     const sendMessageBtn = document.getElementById('send-message-btn');
+    const chatMembers = document.getElementById('chat-members');
     let currentChatId = null;
     let unsubscribeMessages = null;
 
-    // Fonction pour fermer et réinitialiser la vue de chat
     function closeChatWindow() {
         if (messagingContainer) messagingContainer.classList.remove('chat-active');
         if (unsubscribeMessages) unsubscribeMessages();
         
         messagesArea.innerHTML = '';
         chatWithName.textContent = 'Sélectionnez une conversation';
+        if(chatMembers) chatMembers.innerHTML = '';
         messageInput.disabled = true;
         sendMessageBtn.disabled = true;
         currentChatId = null;
         unsubscribeMessages = null;
         if(closeChatBtn) closeChatBtn.style.display = 'none';
 
-        // Déselectionner la conversation active dans la liste
         const activeConv = document.querySelector('.conv-item.active');
         if (activeConv) activeConv.classList.remove('active');
     }
@@ -1156,39 +1157,79 @@ function handleMessagingPage() {
         }
         snapshot.forEach(doc => {
             const chat = doc.data();
-            const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
-            if (!otherUser) return;
             const li = document.createElement('li');
             li.className = 'conv-item';
             li.dataset.chatId = doc.id;
-            li.innerHTML = `
-                <strong>${otherUser.pseudo}</strong><br>
-                <small>${chat.lastMessageText || '...'}</small>
-            `;
-            li.addEventListener('click', () => {
-                document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
-                li.classList.add('active');
-                loadMessages(doc.id, otherUser.pseudo);
-                if (messagingContainer) {
-                    messagingContainer.classList.add('chat-active');
-                }
-            });
+
+            if (chat.isGroupChat) {
+                li.innerHTML = `
+                    <strong>${chat.groupName} 💬</strong><br>
+                    <small>${chat.lastMessageText || '...'}</small>
+                `;
+                li.addEventListener('click', () => {
+                    document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
+                    li.classList.add('active');
+                    loadMessages(doc.id, chat);
+                    if (messagingContainer) {
+                        messagingContainer.classList.add('chat-active');
+                    }
+                });
+            } else {
+                const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
+                if (!otherUser) return;
+                li.innerHTML = `
+                    <strong>${otherUser.pseudo}</strong><br>
+                    <small>${chat.lastMessageText || '...'}</small>
+                `;
+                li.addEventListener('click', () => {
+                    document.querySelectorAll('.conv-item').forEach(item => item.classList.remove('active'));
+                    li.classList.add('active');
+                    loadMessages(doc.id, chat);
+                    if (messagingContainer) {
+                        messagingContainer.classList.add('chat-active');
+                    }
+                });
+            }
             convList.appendChild(li);
         });
     }
 
-    // Ajout des écouteurs d'événements pour les boutons de navigation/fermeture
     if (backBtn) backBtn.addEventListener('click', closeChatWindow);
     if (closeChatBtn) closeChatBtn.addEventListener('click', closeChatWindow);
 
-
-    function loadMessages(chatId, otherUserName) {
+    function loadMessages(chatId, chat) {
         currentChatId = chatId;
-        chatWithName.textContent = otherUserName;
+        const isGroup = chat.isGroupChat;
+        const chatName = isGroup ? chat.groupName : chat.participants.find(p => p.uid !== currentUser.uid)?.pseudo || "Utilisateur";
+        
+        chatWithName.textContent = chatName;
         messagesArea.innerHTML = '';
+        chatMembers.innerHTML = '';
+        
+        const membersPrefix = document.createElement('span');
+        membersPrefix.textContent = 'Participants : ';
+        chatMembers.appendChild(membersPrefix);
+
+        chat.participants.forEach((member, index) => {
+            const memberSpan = document.createElement('span');
+            memberSpan.textContent = member.pseudo;
+
+            if (member.uid !== currentUser.uid) {
+                memberSpan.className = 'chat-member-link';
+                memberSpan.title = `Envoyer un message à ${member.pseudo}`;
+                memberSpan.onclick = () => startChat(member.uid, member.pseudo);
+            }
+
+            chatMembers.appendChild(memberSpan);
+
+            if (index < chat.participants.length - 1) {
+                chatMembers.append(', ');
+            }
+        });
+
         messageInput.disabled = false;
         sendMessageBtn.disabled = false;
-        if(closeChatBtn) closeChatBtn.style.display = 'block'; // Afficher la croix
+        if(closeChatBtn) closeChatBtn.style.display = 'block';
         if (unsubscribeMessages) {
             unsubscribeMessages();
         }
@@ -1200,7 +1241,19 @@ function handleMessagingPage() {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = 'message';
                 messageDiv.classList.add(message.senderId === currentUser.uid ? 'sent' : 'received');
-                messageDiv.textContent = message.text;
+
+                if (isGroup && message.senderId !== currentUser.uid) {
+                    const senderName = document.createElement('div');
+                    senderName.className = 'message-sender';
+                    senderName.textContent = message.senderPseudo;
+                    messageDiv.appendChild(senderName);
+                }
+
+                const messageText = document.createElement('div');
+                messageText.className = 'message-text';
+                messageText.textContent = message.text;
+                messageDiv.appendChild(messageText);
+                
                 messagesArea.prepend(messageDiv);
             });
         });
@@ -1238,39 +1291,99 @@ function handleMessagingPage() {
         db.collection('chats').doc(initialChatId).get().then(doc => {
             if (doc.exists) {
                 const chat = doc.data();
-                const otherUser = chat.participants.find(p => p.uid !== currentUser.uid);
-                if (otherUser) {
-                    loadMessages(initialChatId, otherUser.pseudo);
-                    if (messagingContainer) messagingContainer.classList.add('chat-active');
-                    setTimeout(() => {
-                        document.querySelector(`.conv-item[data-chat-id="${initialChatId}"]`)?.classList.add('active');
-                    }, 500);
-                }
+                loadMessages(initialChatId, chat);
+                if (messagingContainer) messagingContainer.classList.add('chat-active');
+                setTimeout(() => {
+                    document.querySelector(`.conv-item[data-chat-id="${initialChatId}"]`)?.classList.add('active');
+                }, 500);
             }
         });
     }
     loadConversations();
 }
 
-
 async function startChat(otherUserId, otherUserPseudo) {
     if (!currentUser || currentUser.uid === otherUserId) return;
     const chatId = [currentUser.uid, otherUserId].sort().join('_');
     const chatRef = db.collection('chats').doc(chatId);
-    const chatDoc = await chatRef.get();
-    if (!chatDoc.exists) {
-        await chatRef.set({
-            members_uid: [currentUser.uid, otherUserId],
-            participants: [
-                { uid: currentUser.uid, pseudo: currentUser.pseudo },
-                { uid: otherUserId, pseudo: otherUserPseudo }
-            ],
-            lastMessageText: "Début de la conversation...",
-            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+    
+    const chatData = {
+        isGroupChat: false,
+        members_uid: [currentUser.uid, otherUserId],
+        participants: [
+            { uid: currentUser.uid, pseudo: currentUser.pseudo },
+            { uid: otherUserId, pseudo: otherUserPseudo }
+        ],
+        lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    
+    await chatRef.set(chatData, { merge: true });
+    
+    const chatDocAfterSet = await chatRef.get();
+    if (!chatDocAfterSet.data().lastMessageText) {
+        await chatRef.update({
+            lastMessageText: "Début de la conversation..."
         });
     }
+    
     window.location.href = `messagerie.html?chatId=${chatId}`;
 }
+
+async function startGroupChat(slotId) {
+    if (!slotId) {
+        console.error("ERREUR : startGroupChat appelée sans ID de créneau.");
+        return alert("Une erreur est survenue (ID de créneau manquant).");
+    }
+    if (!currentUser) {
+        return alert("Veuillez vous connecter pour accéder à la conversation.");
+    }
+
+    try {
+        const slotRef = db.collection('slots').doc(slotId);
+        const slotDoc = await slotRef.get();
+
+        if (!slotDoc.exists) {
+            return alert("Le créneau correspondant n'a pas été trouvé.");
+        }
+        const slot = createSlotObjectFromDoc(slotDoc);
+
+        if (!slot.participants_uid || !slot.participants || !slot.name) {
+             return alert("Impossible de créer la conversation, les informations du créneau sont incomplètes.");
+        }
+
+        if (!slot.participants_uid.includes(currentUser.uid)) {
+            return alert("Vous devez être participant pour accéder à cette conversation.");
+        }
+
+        const chatId = `group_${slot.id}`;
+        const chatRef = db.collection('chats').doc(chatId);
+        
+        const chatData = {
+            isGroupChat: true,
+            groupName: slot.name,
+            members_uid: slot.participants_uid,
+            participants: slot.participants,
+            lastMessageTimestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            slotId: slot.id
+        };
+        
+        await chatRef.set(chatData, { merge: true });
+        
+        const chatDocAfterSet = await chatRef.get();
+        if (!chatDocAfterSet.data().lastMessageText) {
+            await chatRef.update({
+                lastMessageText: "Conversation de groupe créée."
+            });
+        }
+        
+        window.location.href = `messagerie.html?chatId=${chatId}`;
+
+    } catch (error) {
+        console.error("Erreur lors du démarrage de la conversation de groupe :", error);
+        alert("Une erreur technique est survenue en essayant d'accéder à la conversation.");
+    }
+}
+
 
 document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(async user => {
@@ -1282,7 +1395,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 currentUser = { uid: user.uid, email: user.email, pseudo: user.email.split('@')[0] };
             }
-            checkShared();
             if (document.getElementById('profile-main')) {
                 handleProfilePage();
             } else if (document.getElementById('main-section')) {
@@ -1290,9 +1402,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (document.querySelector('.messaging-container')) {
                 handleMessagingPage();
             }
+            checkShared();
         } else {
             currentUser = null;
-            checkShared();
             if (document.getElementById('auth-section')) {
                  document.getElementById('auth-section').style.display = 'flex';
                  document.getElementById('main-section').style.display = 'none';
@@ -1301,6 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (document.querySelector('.messaging-container')) {
                 window.location.href = 'index.html';
             }
+            checkShared();
         }
         updateHeaderDisplay();
     });
@@ -1308,7 +1421,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutProfile = document.getElementById('logout-profile');
     if (logoutProfile) logoutProfile.addEventListener('click', logout);
 
-    if (document.getElementById('main-section')) {
+    if (document.getElementById('auth-section')) {
         handleIndexPageListeners();
     }
 });
