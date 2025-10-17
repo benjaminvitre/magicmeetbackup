@@ -612,17 +612,22 @@ function showMain(){
 
         try {
             const promises = [];
+            // Requête 1: Créneaux publics (respecte les règles de sécurité)
             let publicQuery = db.collection('slots').where('private', '!=', true);
             promises.push(publicQuery.get());
 
+            // Si l'utilisateur est connecté, on ajoute les requêtes spécifiques pour ses créneaux privés
             if (currentUser) {
-                let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
+                // Requête 2: Créneaux privés où il est le propriétaire
+                let ownerQuery = db.collection('slots').where('private', '==', true).where('owner', '==', currentUser.uid);
                 promises.push(ownerQuery.get());
-                let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
+
+                // Requête 3: Créneaux privés où il est participant
+                let participantQuery = db.collection('slots').where('private', '==', true).where('participants_uid', 'array-contains', currentUser.uid);
                 promises.push(participantQuery.get());
             }
 
-            const snapshots = await Promise.all(promises);
+            const snapshots = await Promise.all(snapshots);
             const slotsMap = new Map();
             snapshots.forEach(snapshot => {
                 snapshot.forEach(doc => {
@@ -634,6 +639,8 @@ function showMain(){
 
             let allSlots = Array.from(slotsMap.values());
             
+            // Les filtres suivants sont appliqués côté client car ils ne peuvent pas être combinés
+            // facilement avec une requête "OR" complexe.
             allSlots = allSlots.filter(slot => {
                 if (!slot) return false;
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
@@ -663,7 +670,7 @@ function showMain(){
 
         } catch (error) {
             console.error("Erreur lors du chargement des créneaux:", error);
-            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier les règles de sécurité Firebase.</li>`;
+            list.innerHTML = `<li style="color:var(--act-sport); padding: 10px 0;">Erreur de permissions. Veuillez vérifier vos règles de sécurité Firebase.</li>`;
         }
     }
 
