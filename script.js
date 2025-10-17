@@ -612,7 +612,7 @@ function showMain(){
 
         try {
             const promises = [];
-            // Requête 1: Créneaux publics (respecte les règles de sécurité)
+            // Requête 1: Créneaux publics
             let publicQuery = db.collection('slots').where('private', '!=', true);
             promises.push(publicQuery.get());
 
