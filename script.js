@@ -612,17 +612,12 @@ function showMain(){
 
         try {
             const promises = [];
-            // Requête 1: Créneaux publics (respecte les règles de sécurité)
             let publicQuery = db.collection('slots').where('private', '!=', true);
             promises.push(publicQuery.get());
 
-            // Si l'utilisateur est connecté, on ajoute les requêtes spécifiques pour ses créneaux privés
             if (currentUser) {
-                // Requête 2: Créneaux privés où il est le propriétaire
                 let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
                 promises.push(ownerQuery.get());
-
-                // Requête 3: Créneaux privés où il est participant
                 let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
                 promises.push(participantQuery.get());
             }
@@ -641,7 +636,6 @@ function showMain(){
 
             let allSlots = Array.from(slotsMap.values());
             
-            // Les filtres suivants sont appliqués côté client
             allSlots = allSlots.filter(slot => {
                 if (!slot) return false;
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
