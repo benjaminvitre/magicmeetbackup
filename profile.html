@@ -33,13 +33,15 @@
         <h1 class="site-title">Profil 👤</h1>
         <nav class="header-right">
             <a id="messagerie-link" href="messagerie.html" class="ghost-btn" style="display:none;">Messagerie 💬</a>
-            <button id="logout-profile" class="ghost-btn">Se déconnecter</button>
         </nav>
     </header>
 
     <main id="profile-main">
         <section class="card">
-            <h2>Mes informations</h2>
+            <div class="card-header">
+                <h2>Mes informations</h2>
+                <button id="logout-profile" class="ghost-btn">Déconnexion</button>
+            </div>
             <form id="profile-form">
                 <label for="profile-pseudo">Pseudo</label>
                 <input id="profile-pseudo" type="text" placeholder="Pseudo" required />
@@ -147,12 +149,12 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script>
       const firebaseConfig = {
-  apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
-  authDomain: "magicmeet-947cf.firebaseapp.com",
-  projectId: "magicmeet-947cf",
-  storageBucket: "magicmeet-947cf.firebasestorage.app",
-  messagingSenderId: "400119032453",
-  appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
+          apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
+          authDomain: "magicmeet-947cf.firebaseapp.com",
+          projectId: "magicmeet-947cf",
+          storageBucket: "magicmeet-947cf.appspot.com",
+          messagingSenderId: "400119032453",
+          appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
       };
       
       firebase.initializeApp(firebaseConfig);
