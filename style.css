@@ -229,14 +229,13 @@ input:focus, select:focus {
     background-color: var(--border-color);
 }
 
-/* MODIFIÉ : Styles pour les boutons Profil & Messagerie */
 .header-right .ghost-btn {
     border-radius: 20px;
     padding: 8px 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px; /* Ajoute un espace entre l'emoji et le texte */
+    gap: 8px;
 }
 
 
@@ -499,23 +498,21 @@ input:focus, select:focus {
 */
 @media (max-width: 768px) {
     .header {
-        flex-wrap: wrap;
-    }
-    .logo-link {
-        order: 0;
-        margin-right: 5px;
+        gap: 8px;
     }
     .site-title {
-        order: 1;
-        width: auto;
-        margin-top: 0;
-        text-align: left;
-        font-size: 1.3em;
+        font-size: 1.2em;
+        flex-shrink: 0;
     }
     .header-right {
-        order: 2;
+        flex-shrink: 1;
         margin-left: auto;
     }
+    .header-right .ghost-btn {
+        padding: 6px 10px;
+        font-size: 0.8em;
+    }
+
     .auth-section {
         flex-direction: column;
         margin-top: 20px;
@@ -763,7 +760,6 @@ input:focus, select:focus {
     text-overflow: ellipsis;
     display: block;
 }
-/* MODIFIÉ : Styles pour les conversations non lues */
 .conv-item.unread strong {
     font-weight: 800;
     color: var(--text-primary);
