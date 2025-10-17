@@ -846,3 +846,35 @@ input:focus, select:focus {
 .close-chat-btn:hover {
     color: var(--text-primary);
 }
+
+/* ====================================
+10. NOUVEAUX STYLES MESSAGERIE
+====================================
+*/
+.chat-title-container {
+    flex-grow: 1;
+    overflow: hidden; /* Empêche le texte de déborder */
+}
+
+.chat-header h2 {
+    margin-bottom: 4px;
+}
+
+.chat-members-list {
+    font-size: 0.8em;
+    color: var(--muted-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-member-link {
+    cursor: pointer;
+    text-decoration: underline;
+    color: var(--text-primary);
+    transition: color 0.2s;
+}
+
+.chat-member-link:hover {
+    color: var(--text-accent);
+}
