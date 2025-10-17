@@ -47,8 +47,11 @@
         <section class="chat-window card">
             <header class="chat-header">
                 <button id="back-to-conv-btn" class="back-btn">←</button>
-                <h2 id="chat-with-name">Sélectionnez une conversation</h2>
-                <button id="close-chat" class="close-chat-btn">&times;</button>
+                <div class="chat-title-container">
+                    <h2 id="chat-with-name">Sélectionnez une conversation</h2>
+                    <div id="chat-members" class="chat-members-list"></div>
+                </div>
+                <button id="close-chat" class="close-chat-btn">×</button>
             </header>
             <div class="messages-area" id="messages-area">
                 </div>
@@ -64,12 +67,12 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script>
       const firebaseConfig = {
-  apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
-  authDomain: "magicmeet-947cf.firebaseapp.com",
-  projectId: "magicmeet-947cf",
-  storageBucket: "magicmeet-947cf.firebasestorage.app",
-  messagingSenderId: "400119032453",
-  appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
+          apiKey: "AIzaSyB7jLBW1cS_6DbV4XT0HPZSEvngR0T2PJI",
+          authDomain: "magicmeet-947cf.firebaseapp.com",
+          projectId: "magicmeet-947cf",
+          storageBucket: "magicmeet-947cf.appspot.com",
+          messagingSenderId: "400119032453",
+          appId: "1:400119032453:web:8e84695eea557a5aa5d7ec"
       };
       
       firebase.initializeApp(firebaseConfig);
