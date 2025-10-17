@@ -611,25 +611,31 @@ function showMain(){
         archivedList.innerHTML = '';
 
         try {
-            const snapshot = await db.collection('slots').get();
-            let allSlots = snapshot.docs.map(doc => createSlotObjectFromDoc(doc));
-            
-            // FILTRAGE CÔTÉ CLIENT POUR LA VISIBILITÉ (RESPECT DES RÈGLES)
-            allSlots = allSlots.filter(slot => {
-                if (!slot) return false;
-                // Un créneau est visible si:
-                // 1. Il n'est pas privé
-                const isPublic = slot.private !== true;
-                // 2. OU l'utilisateur est connecté ET est le propriétaire
-                const isOwner = currentUser && slot.owner === currentUser.uid;
-                // 3. OU l'utilisateur est connecté ET fait partie des participants
-                const isParticipant = currentUser && (slot.participants_uid || []).includes(currentUser.uid);
+            const promises = [];
+            let publicQuery = db.collection('slots').where('private', '!=', true);
+            promises.push(publicQuery.get());
 
-                return isPublic || isOwner || isParticipant;
+            if (currentUser) {
+                let ownerQuery = db.collection('slots').where('owner', '==', currentUser.uid);
+                promises.push(ownerQuery.get());
+                let participantQuery = db.collection('slots').where('participants_uid', 'array-contains', currentUser.uid);
+                promises.push(participantQuery.get());
+            }
+
+            const snapshots = await Promise.all(promises);
+            const slotsMap = new Map();
+            snapshots.forEach(snapshot => {
+                snapshot.forEach(doc => {
+                    if (!slotsMap.has(doc.id)) {
+                        slotsMap.set(doc.id, createSlotObjectFromDoc(doc));
+                    }
+                });
             });
 
-            // FILTRAGE CÔTÉ CLIENT POUR L'INTERFACE UTILISATEUR
+            let allSlots = Array.from(slotsMap.values());
+            
             allSlots = allSlots.filter(slot => {
+                if (!slot) return false;
                 if (currentFilterActivity !== "Toutes" && slot.activity !== currentFilterActivity) return false;
                 if (currentFilterSub !== "Toutes" && slot.sub !== currentFilterSub) return false;
                 if (currentFilterGroup !== "Toutes" && slot.groupId !== currentFilterGroup) return false;
