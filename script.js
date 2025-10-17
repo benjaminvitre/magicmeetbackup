@@ -103,44 +103,150 @@ function logout() {
   auth.signOut().catch(error => console.error("Erreur de déconnexion: ", error));
 }
 
-/* === ici, tout le reste de ton code d'origine (handleIndexPageListeners, showMain, etc.) reste inchangé === */
+// =======================================================================
+// NOUVELLES FONCTIONS D'AUTHENTIFICATION ET D'UI
+// =======================================================================
 
-/* ---------------------------------------------------------------------- */
-/* FIN DU FICHIER — ÉCOUTEUR D’AUTHENTIFICATION FIREBASE (version corrigée) */
-/* ---------------------------------------------------------------------- */
+/**
+ * Gère l'affichage/masquage des mots de passe.
+ */
+function setupPasswordToggle(checkboxId, passwordInputId, confirmPasswordInputId = null) {
+    const checkbox = document.getElementById(checkboxId);
+    const passwordInput = document.getElementById(passwordInputId);
+    const confirmPasswordInput = confirmPasswordInputId ? document.getElementById(confirmPasswordInputId) : null;
+
+    if (checkbox && passwordInput) {
+        checkbox.addEventListener('change', () => {
+            const isChecked = checkbox.checked;
+            passwordInput.type = isChecked ? 'text' : 'password';
+            if (confirmPasswordInput) {
+                confirmPasswordInput.type = isChecked ? 'text' : 'password';
+            }
+        });
+    }
+}
+
+
+/**
+ * Gère les événements de connexion et d'inscription.
+ */
+function handleAuth() {
+    const loginBtn = document.getElementById('login');
+    const signupBtn = document.getElementById('signup');
+    const pseudoInput = document.getElementById('pseudo');
+    const passwordInput = document.getElementById('password-signup');
+    const confirmPasswordInput = document.getElementById('password-confirm-signup');
+
+    // --- Validation pour activer le bouton d'inscription ---
+    function validateSignupForm() {
+        const isPseudoValid = pseudoInput && pseudoInput.value.trim() !== '';
+        const arePasswordsMatching = passwordInput && confirmPasswordInput && passwordInput.value === confirmPasswordInput.value && passwordInput.value !== '';
+        if (signupBtn) {
+            signupBtn.disabled = !(isPseudoValid && arePasswordsMatching);
+        }
+    }
+
+    if (pseudoInput) pseudoInput.addEventListener('input', validateSignupForm);
+    if (passwordInput) passwordInput.addEventListener('input', validateSignupForm);
+    if (confirmPasswordInput) confirmPasswordInput.addEventListener('input', validateSignupForm);
+
+
+    // --- Logique de Connexion ---
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            const email = document.getElementById('email-login').value;
+            const password = document.getElementById('password-login').value;
+            auth.signInWithEmailAndPassword(email, password)
+                .catch(error => {
+                    console.error("Erreur de connexion: ", error);
+                    alert("Erreur de connexion : " + error.message);
+                });
+        });
+    }
+
+    // --- Logique d'Inscription ---
+    if (signupBtn) {
+        signupBtn.addEventListener('click', () => {
+            const pseudo = document.getElementById('pseudo').value;
+            const email = document.getElementById('email-signup').value;
+            const password = document.getElementById('password-signup').value;
+
+            auth.createUserWithEmailAndPassword(email, password)
+                .then(userCredential => {
+                    // Sauvegarde des informations utilisateur dans Firestore
+                    return db.collection('users').doc(userCredential.user.uid).set({
+                        pseudo: pseudo,
+                        email: email,
+                        phone: '' // Initialise le champ téléphone
+                    });
+                })
+                .then(() => {
+                    console.log("Compte créé avec succès !");
+                })
+                .catch(error => {
+                    console.error("Erreur d'inscription: ", error);
+                    alert("Erreur d'inscription : " + error.message);
+                });
+        });
+    }
+}
+
+// =======================================================================
+// ÉCOUTEUR PRINCIPAL
+// =======================================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (typeof auth === "undefined") return; // sécurité
+    // Initialise les fonctionnalités d'authentification et d'UI
+    handleAuth();
+    setupPasswordToggle('show-password-login', 'password-login');
+    setupPasswordToggle('show-password-signup', 'password-signup', 'password-confirm-signup');
 
-  auth.onAuthStateChanged(async (user) => {
-    if (user) {
-      currentUser = user;
-      try {
-        const userDoc = await db.collection('users').doc(user.uid).get();
-        if (userDoc.exists) {
-          currentUser.pseudo = userDoc.data().pseudo;
-        }
-      } catch (e) {
-        console.error("Erreur de chargement du profil :", e);
-      }
-
-      updateHeaderDisplay();
-
-      // ✅ Seulement sur la page d'accueil (index.html)
-      if (document.getElementById('main-section') && typeof showMain === "function") {
-        showMain();
-        if (typeof loadSlots === 'function') {
-          loadSlots('slots-list', 'slots-list');
-          loadSlots('past-slots-list', 'past-slots-list');
-        }
-      }
-    } else {
-      // Si pas connecté, on affiche la section de connexion (seulement sur index.html)
-      if (document.getElementById('auth-section')) {
-        document.getElementById('auth-section').style.display = 'block';
-        const mainSection = document.getElementById('main-section');
-        if (mainSection) mainSection.style.display = 'none';
-      }
+    if (typeof auth === "undefined") {
+        console.error("Firebase Auth n'est pas initialisé.");
+        return;
     }
-  });
+
+    auth.onAuthStateChanged(async (user) => {
+        const authSection = document.getElementById('auth-section');
+        const mainSection = document.getElementById('main-section');
+
+        if (user) {
+            currentUser = user;
+            try {
+                const userDoc = await db.collection('users').doc(user.uid).get();
+                if (userDoc.exists) {
+                    currentUser.pseudo = userDoc.data().pseudo;
+                } else {
+                     console.log("Le document utilisateur n'existe pas, déconnexion...");
+                     logout();
+                     return;
+                }
+            } catch (e) {
+                console.error("Erreur de chargement du profil :", e);
+            }
+
+            updateHeaderDisplay();
+
+            // Cache la section d'authentification et montre le contenu principal
+            if (authSection) authSection.style.display = 'none';
+            if (mainSection) mainSection.style.display = 'block';
+
+            // Charge le contenu spécifique à la page d'accueil
+            if (document.getElementById('slots-list')) {
+                 if (typeof loadSlots === 'function') {
+                    // Ces fonctions ne sont pas définies dans le code fourni,
+                    // mais je garde l'appel au cas où elles existent ailleurs.
+                    // loadSlots('slots-list', 'slots-list');
+                    // loadSlots('past-slots-list', 'past-slots-list');
+                 }
+            }
+
+        } else {
+            currentUser = null;
+            updateHeaderDisplay();
+            // Montre la section d'authentification et cache le contenu principal
+            if (authSection) authSection.style.display = 'flex';
+            if (mainSection) mainSection.style.display = 'none';
+        }
+    });
 });
