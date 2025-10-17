@@ -93,8 +93,8 @@ function updateHeaderDisplay() {
     const messagerieLink = document.getElementById('messagerie-link');
     const logoutProfileBtn = document.getElementById('logout-profile');
     if (currentUser) {
-        if (profileLink) profileLink.style.display = 'inline-block';
-        if (messagerieLink) messagerieLink.style.display = 'inline-block';
+        if (profileLink) profileLink.style.display = 'flex';
+        if (messagerieLink) messagerieLink.style.display = 'flex';
         if (logoutProfileBtn) logoutProfileBtn.style.display = 'inline-block';
     } else {
         if (profileLink) profileLink.style.display = 'none';
@@ -288,12 +288,7 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
             actions.appendChild(leaveBtn);
         }
         if (isOwner){
-            const editBtn = document.createElement('button'); 
-            editBtn.textContent='✏️'; 
-            editBtn.title='Modifier';
-            editBtn.className = 'action-btn ghost-action-btn';
-            editBtn.onclick = () => openEditModal(slot);
-            actions.appendChild(editBtn);
+            // --- CORRECTION 3/3 : INVERSION DES ICÔNES ---
             const del = document.createElement('button'); del.textContent='🗑️'; del.title='Supprimer';
             del.className = 'action-btn ghost-action-btn';
             del.onclick = ()=> {
@@ -301,6 +296,13 @@ function renderSlotItem(slot, targetListElement, isArchived = false) {
                 slotRef.delete().then(reloadLists);
             };
             actions.appendChild(del);
+
+            const editBtn = document.createElement('button'); 
+            editBtn.textContent='✏️'; 
+            editBtn.title='Modifier';
+            editBtn.className = 'action-btn ghost-action-btn';
+            editBtn.onclick = () => openEditModal(slot);
+            actions.appendChild(editBtn);
         }
     }
     
@@ -600,9 +602,6 @@ function showMain(){
         }
     }
 
-    // =======================================================================
-    // == CORRECTION DÉFINITIVE DE L'AFFICHAGE DES CRÉNEAUX ==
-    // =======================================================================
     async function loadSlots() {
         const list = document.getElementById('slots-list');
         const archivedList = document.getElementById('archived-slots-list');
